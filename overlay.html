@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overlay</title>
+    <style>
+        /* Style your overlay here */
+        .overlay {
+            border: 1;
+            /* position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999; */
+        }
+
+        .overlay-content {
+            border: 1;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- <div class="overlay"> -->
+        <div class="overlay-content rounded border border-1">
+            <h1>image</h1>
+            <hr>
+            <input type="file" id="overlay-file-input">
+        </div>
+    <!-- </div> -->
+</body>
+</html>
