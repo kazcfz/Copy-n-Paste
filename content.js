@@ -11,37 +11,36 @@ function afterDOMLoaded(){
   console.log("File input elements found:", fileInputs.length); //test
 }
 
-function handleDocumentClick(event) {
-  // If the clicked element is not the text box, hide it
-  if (textBox && !textBox.contains(event.target)) {
-    textBox.remove();
-    textBox = null;
-    // Remove the click event listener after hiding the text box
-    document.removeEventListener('click', handleDocumentClick);
-  }
-}
-
 // Function to handle click event on file input element
 function handleFileInputClick(event) {
   event.preventDefault();
   console.log('Input file clicked success');
+  const originalInput = event.target;
 
   // Create overlay
   const overlay = document.createElement('div');
   overlay.classList.add('overlay');
+
   // Load overlay content
   fetch(chrome.runtime.getURL('overlay.html'))
     .then(response => response.text())
     .then(html => {
       overlay.innerHTML = html;
       document.body.appendChild(overlay);
-      // Position overlay-content where cursor is
+
+      // Position overlay's bottom-left to where cursor is
       const overlayContent = overlay.querySelector('.overlay-content');
-      // Account for scroll offset
       overlayContent.style.left = event.clientX + window.scrollX + (overlayContent.offsetWidth / 2) + 5 + 'px';
       overlayContent.style.top = event.clientY + window.scrollY - (overlayContent.offsetHeight / 2) + 'px';
+
       // Add event listener to close overlay when clicking outside of overlay-content
       document.addEventListener('click', closeOverlayOnClickOutside);
+
+      // Add event listener to handle file selection in overlay
+      const overlayFileInput = overlay.querySelector('#overlay-file-input');
+      overlayFileInput.addEventListener('change', (event) => {
+          handleOverlayFileSelection(event, originalInput);
+      });
     });
 }
 
@@ -54,6 +53,16 @@ function closeOverlayOnClickOutside(event) {
       document.removeEventListener('click', closeOverlayOnClickOutside);
   }
 }
+
+// Function to handle file selection in overlay and pass it to original input file element
+function handleOverlayFileSelection(event, originalInput) {
+  const file = event.target.files[0];
+  originalInput.files = event.target.files;
+  // Trigger change event on original input to update its value
+  const changeEvent = new Event('change', { bubbles: true });
+  originalInput.dispatchEvent(changeEvent);
+}
+
 
 
 
