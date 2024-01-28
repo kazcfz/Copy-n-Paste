@@ -38,9 +38,8 @@ function handleFileInputClick(event) {
 
     // Add event listener to handle file selection in overlay
     const overlayFileInput = overlay.querySelector('#overlay-file-input');
-    overlayFileInput.addEventListener('change', (event) => {
-        handleOverlayFileSelection(event, originalInput);
-    });
+    overlayFileInput.addEventListener('change', (event) => handleOverlayFileSelection(event, originalInput));
+    overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
 
     // Read images from clipboard and display in overlay
     navigator.clipboard.read().then(clipboardItems => {
