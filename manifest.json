@@ -4,7 +4,6 @@
     "version": "1.0",
     "description": "Upload images directly from your clipboard",
     "action": {
-      "default_popup": "overlay.html",
       "default_icon": {
         "16": "./icons/icon16.png",
         "64": "./icons/icon64.png",
