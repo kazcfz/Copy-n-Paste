@@ -54,17 +54,41 @@ function handleFileInputClick(event) {
               img.src = event.target.result;
               img.style.maxWidth = '200px';
               img.style.maxHeight = '200px';
+
+              img.addEventListener('click', () => {
+                // Convert the blob into a file object
+                const file = new File([blob], 'screenshot.png', { type: blob.type });
+
+                // Create a new FormData object
+                const fileList = new DataTransfer();
+                fileList.items.add(file);
+
+                originalInput.files = fileList.files;
+                
+                // // Trigger change event on original input to update its value
+                const changeEvent = new Event('change', { bubbles: true });
+                originalInput.dispatchEvent(changeEvent);
+                // // Close the overlay
+                closeOverlay()
+              });
+
               imagePreview.appendChild(img);
             };
             reader.readAsDataURL(blob);
           }).catch(error => {
             console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
               '\nNo image found in clipboard');
-          });
+          }); //Never called because if condition is set already
         }
       });
     }).catch(error => { /* pass */ });
   });
+}
+
+// Function to convert blob to File object
+function blobToFile(blob) {
+    const file = new File([blob], 'clipboard-image.png', { type: blob.type });
+    return file;
 }
 
 // Close overlay
