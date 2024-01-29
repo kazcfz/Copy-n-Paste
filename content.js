@@ -77,7 +77,10 @@ function handleFileInputClick(event) {
       console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
         '\nFailed to read clipboard');
     });
-  });
+  }).catch(error => {
+    console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
+      '\nFetching error: "overlay.html"');
+  });;
 }
 
 // Convert blob to File object
