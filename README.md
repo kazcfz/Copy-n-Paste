@@ -3,7 +3,7 @@
 </p>
 
 <h3 align="center">Paste Image Uploader</h3>
-<p align="center">Instantly upload images from your clipboard</p>
+<p align="center">Instantly upload images from your clipboard.</p>
 <br><br>
 
 # Paste Image Uploader
