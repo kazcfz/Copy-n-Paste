@@ -75,7 +75,7 @@ function handleFileInputClick(event) {
       });
     }).catch(error => {
       console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
-        '\nFailed to read clipboard');
+        '\nFailed to read clipboard. Was your last copy a screenshot?');
     });
   }).catch(error => {
     console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
