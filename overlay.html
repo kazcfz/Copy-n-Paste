@@ -5,23 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Overlay</title>
     <style>
-        .overlay-content {
-            border: 1;
+        .piu-overlay-content {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            padding: 6px;
             transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 20px;
+            background-color: rgba(255, 255, 255, .75);
+            backdrop-filter: blur(15px);
+            border-width: .5px;
+            border-color: #dee2e6;
+            border-style: solid;
+            border-radius: .4rem;
+            box-shadow: 2px 6px 10px rgba(0,0,0,.05), 0 0 6px rgba(0,0,0,.05);
+            overflow: hidden;
+            text-align: center;
+            color: #212529;
+        }
+
+        .piu-hr {
+            margin: 0.25rem 0;
+            color: inherit;
+            border: 0;
+            border-top: .5px solid;
+            opacity: .25;
+        }
+
+        #piu-image-container {
+            width: 240px;
+            height: 135px;
+            padding: 6px;
+            border-radius: .4rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #piu-image-container:hover {
+            background-color: rgba(0, 0, 0, .05);
+            filter: brightness(.95);
+        }
+
+        #piu-image-preview {
+            border-radius: .4rem;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        #piu-overlay-file-input {
+            display: none;
+        }
+
+        #piu-upload {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            font-weight: 500;
+        }
+
+        .piu-menu-item {
+            cursor: default;
+            border-radius: .4rem;
+            padding: 6px;
+        }
+        .piu-menu-item:hover {
+            background-color: rgba(0, 0, 0, .05);
+        }
+        
+        .piu-bi {
+            vertical-align: -.125em;
         }
     </style>
 </head>
 <body>
-    <div class="overlay-content rounded border border-1">
-        <div id="image-preview"></div>
-        <hr>
-        <input type="file" id="overlay-file-input">
+    <div class="piu-overlay-content">
+        <!-- Image Container & Preview -->
+        <div id="piu-image-container"></div>
+
+        <hr class="piu-hr">
+
+        <!-- + Upload Image -->
+        <input type="file" id="piu-overlay-file-input">
+        <div class="piu-menu-item" onclick="document.getElementById('piu-overlay-file-input').click();">
+            <span id="piu-upload">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="piu-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
+                Upload Image
+            </span>
+        </div>
     </div>
 </body>
-
 </html>

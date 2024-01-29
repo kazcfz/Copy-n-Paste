@@ -27,7 +27,7 @@ function handleFileInputClick(event) {
     document.body.appendChild(overlay);
 
     // Position overlay's bottom-left to where cursor is
-    const overlayContent = overlay.querySelector('.overlay-content');
+    const overlayContent = overlay.querySelector('.piu-overlay-content');
     overlayContent.style.left = event.clientX + window.scrollX + (overlayContent.offsetWidth / 2) + 5 + 'px';
     overlayContent.style.top = event.clientY + window.scrollY - (overlayContent.offsetHeight / 2) + 'px';
 
@@ -35,7 +35,7 @@ function handleFileInputClick(event) {
     document.addEventListener('click', closeOverlayOnClickOutside);
 
     // Add event listener to handle file selection in overlay
-    const overlayFileInput = overlay.querySelector('#overlay-file-input');
+    const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
     overlayFileInput.addEventListener('change', (event) => handleOverlayFileSelection(event, originalInput));
     overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
 
@@ -47,13 +47,12 @@ function handleFileInputClick(event) {
             const reader = new FileReader();
 
             reader.onload = function(event) {
-              const imagePreview = overlay.querySelector('#image-preview');
+              const imagePreview = overlay.querySelector('#piu-image-container');
               const img = document.createElement('img');
               img.src = event.target.result;
-              img.style.maxWidth = '200px';
-              img.style.maxHeight = '200px';
+              img.id = 'piu-image-preview';
 
-              img.addEventListener('click', () => {
+              imagePreview.addEventListener('click', () => {
                 // Convert blob into file object
                 const file = new File([blob], 'screenshot.png', { type: blob.type });
 
@@ -96,7 +95,7 @@ function closeOverlay(){
 
 // Close overlay when clicking outside of overlay-content
 function closeOverlayOnClickOutside(event) {
-  const overlayContent = document.querySelector('.overlay-content');
+  const overlayContent = document.querySelector('.piu-overlay-content');
   if (!overlayContent.contains(event.target))
     closeOverlay()
 }
