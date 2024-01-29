@@ -11,8 +11,8 @@ Paste Image Uploader is a lightweight Chromium extension designed to simplify th
 <br><br>
 
 ## Features
-- **Lightweight** – Less than 0.2MB
-- **Clean & Simple GUI** – Only 1 interface to upload images
+- **Lightweight** – Less than 0.2MB!
+- **Clean & Simple GUI** – Only 1 interface!
 <br><br>
 
 ## Compatibility
