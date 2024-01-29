@@ -4,11 +4,9 @@ else
   afterDOMLoaded();
 
 function afterDOMLoaded(){
+  // Prepare input file elements for extension use
   const fileInputs = document.querySelectorAll("input[type='file']");
-  fileInputs.forEach((input) => {
-    input.addEventListener('click', handleFileInputClick);
-  });
-  // console.log("File input elements found:", fileInputs.length);
+  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick) );
 }
 
 // When input elements are clicked
@@ -26,15 +24,15 @@ function handleFileInputClick(event) {
     overlay.innerHTML = html;
     document.body.appendChild(overlay);
 
-    // Position overlay's bottom-left to where cursor is
+    // Position overlay's bottom-left to cursor position
     const overlayContent = overlay.querySelector('.piu-overlay-content');
     overlayContent.style.left = event.clientX + window.scrollX + (overlayContent.offsetWidth / 2) + 5 + 'px';
     overlayContent.style.top = event.clientY + window.scrollY - (overlayContent.offsetHeight / 2) + 'px';
 
-    // Add event listener to close overlay when clicking outside of overlay-content
+    // Close overlay when clicking outside of overlay-content
     document.addEventListener('click', closeOverlayOnClickOutside);
 
-    // Add event listener to handle file selection in overlay
+    // Handle file selection in overlay
     const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
     overlayFileInput.addEventListener('change', (event) => handleOverlayFileSelection(event, originalInput));
     overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
@@ -45,7 +43,6 @@ function handleFileInputClick(event) {
         if (clipboardItems[0]['types'][0] == 'image/png') {
           clipboardItem.getType('image/png').then(blob => {
             const reader = new FileReader();
-
             reader.onload = function(event) {
               const imagePreview = overlay.querySelector('#piu-image-container');
               const img = document.createElement('img');
@@ -81,12 +78,6 @@ function handleFileInputClick(event) {
     console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
       '\nFetching error: "overlay.html"');
   });;
-}
-
-// Convert blob to File object
-function blobToFile(blob) {
-    const file = new File([blob], 'clipboard-image.png', { type: blob.type });
-    return file;
 }
 
 // Close overlay
