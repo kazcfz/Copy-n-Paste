@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://i.imgur.com/ubvEFz0.png" alt="Paste Image Uploader" width="175" height="175">
+    <img src="https://i.imgur.com/U46jQaJ.png" alt="Paste Image Uploader" width="175" height="175">
 </p>
 
 <h3 align="center">Paste Image Uploader</h3>
