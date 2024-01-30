@@ -7,6 +7,7 @@
 
 # Paste Image Uploader
 Paste Image Uploader is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to web forms, eliminating the need to save them as files first.
+<p align="center"><img src="https://i.imgur.com/SPEYftv.png" alt="Screenshot Preview" width="600" height="375"></p>
 <br><br>
 
 ## Features
