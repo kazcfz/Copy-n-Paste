@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Paste Image Uploader",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Upload images directly from your clipboard",
     "action": {},
     "icons": {
@@ -10,7 +10,8 @@
         "128": "./icons/icon128.png"
     },
     "permissions": [
-      "clipboardRead"
+      "clipboardRead",
+      "activeTab"
     ],
     "content_scripts": [
       {
