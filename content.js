@@ -3,23 +3,23 @@ if(document.readyState === 'loading')
 else
   afterDOMLoaded();
 
-// Initiate global variables 
+// Global variables 
 let clientX = 0;
 let clientY = 0;
 
 function afterDOMLoaded(){
-  // Prepare input file elements for extension use
+  // Prep all input file elements
   const fileInputs = document.querySelectorAll("input[type='file']");
   fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick));
 
-  // Find customized input file elements, then prepare for extension use
+  // Find and prep customized input file elements
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
-        // Checks if the node itself is an input file element
+        // Checks if node is an input file element
         if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
           node.addEventListener("click", handleFileInputClick);
-        // Checks if sub-nodes (child) are input file elements
+        // Checks if sub-nodes/child are input file elements
         else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
           const fileInputs = node.querySelectorAll("input[type='file']");
           fileInputs.forEach(fileInput => {
@@ -32,14 +32,14 @@ function afterDOMLoaded(){
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // Other webpages report cursor coordinates as (0, 0) on input click (customized ones). So, need to record last known coordinates
+  // Record last know coord. Some webpages report coords as 0,0
   document.addEventListener('click', event => {
     clientX = event.clientX;
     clientY = event.clientY;
   });
 }
 
-// When input elements are clicked
+// When prepped input elements are clicked
 function handleFileInputClick(event) {
   event.preventDefault();
   const originalInput = event.target;
@@ -55,12 +55,12 @@ function handleFileInputClick(event) {
       overlay.innerHTML = html;
       document.body.appendChild(overlay);
 
-      // Position overlay's bottom-left to cursor position (default)
+      // Position overlay to cursor coord
       const overlayContent = overlay.querySelector('.piu-overlay-content');
       let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
       let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
 
-      // If overlay is too much to the right / top, flip coordinates
+      // Flip if overlay overshoots
       const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
       const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
 
@@ -72,17 +72,17 @@ function handleFileInputClick(event) {
       overlayContent.style.left = overlayLeftPos + 'px';
       overlayContent.style.top = overlayBottomPos + 'px';
 
-      // Close overlay when clicking outside of overlay-content
+      // Close overlay when clicked outside
       document.addEventListener('click', closeOverlayOnClickOutside);
 
-      // Set click listener on overlay's upload button
+      // Overlay upload click listener
       const uploadBtn = overlay.querySelector('#piu-upload-btn');
       uploadBtn.addEventListener('click', () => {
         const fileInput = overlay.querySelector('#piu-overlay-file-input');
         fileInput.click();
       });
 
-      // Handle file input in overlay
+      // Overlay handle file input
       const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
       overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
       overlayFileInput.addEventListener('change', (event) => {
@@ -112,7 +112,7 @@ function handleFileInputClick(event) {
         closeOverlay();
       });
       
-      // Read images from clipboard and display in overlay
+      // Read and preview clipboard image
       const imagePreview = overlay.querySelector('#piu-image-container');
       let noImg = overlay.querySelector('#piu-not-image');
       navigator.clipboard.read().then(clipboardItems => {
@@ -146,7 +146,7 @@ function handleFileInputClick(event) {
                   noImg.parentNode.removeChild(noImg);
               });
             } else {
-              // Check if noImage text already exists
+              // Check if noImage text exists
               if (!noImg)
                 noImage(imagePreview);
               noImg = overlay.querySelector('#piu-not-image');
@@ -154,7 +154,7 @@ function handleFileInputClick(event) {
           })
         });
       }).catch(error => {
-        // Check if noImage text already exists
+        // Check if noImage text exists
         if (!noImg)
           noImage(imagePreview);
         noImg = overlay.querySelector('#piu-not-image');
@@ -165,20 +165,19 @@ function handleFileInputClick(event) {
   }
 }
 
-
 // Console logging for errors and messages
 function logging(message) {
   console.log('%c📋 Paste Image Uploader:\n', 'font-weight: bold; font-size: 1.3em;', message);
 }
 
-// Close overlay
+// Close overlay immediate
 function closeOverlay() {
   const overlay = document.querySelector('.overlay');
   overlay.remove();
   document.removeEventListener('click', closeOverlayOnClickOutside);
 }
 
-// Close overlay when clicking outside of overlay-content
+// Close overlay when clicked outside
 function closeOverlayOnClickOutside(event) {
   const overlayContent = document.querySelector('.piu-overlay-content');
   if (!overlayContent.contains(event.target))
@@ -195,13 +194,13 @@ function noImage(imagePreview) {
   imagePreview.appendChild(PIU_notImage);
 }
 
-// Trigger change event on original input to update value (such as disabled buttons)
+// Trigger change event on original input to update value (like disabled buttons)
 function triggerChangeEvent(originalInput) {
   const changeEvent = new Event('change', { bubbles: true });
   originalInput.dispatchEvent(changeEvent);
 }
 
-// Select dropped file into input element
+// Put dropped file into original input element
 function handleDroppedFiles(files, originalInput) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
