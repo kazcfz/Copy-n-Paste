@@ -3,12 +3,41 @@ if(document.readyState === 'loading')
 else
   afterDOMLoaded();
 
+// Initiate global variables 
+let clientX = 0;
+let clientY = 0;
+
 function afterDOMLoaded(){
   // Prepare input file elements for extension use
   const fileInputs = document.querySelectorAll("input[type='file']");
-  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick) );
-}
+  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick));
 
+  // Find customized input file elements, then prepare for extension use
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        // Checks if the node itself is an input file element
+        if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
+          node.addEventListener("click", handleFileInputClick);
+        // Checks if sub-nodes (child) are input file elements
+        else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
+          const fileInputs = node.querySelectorAll("input[type='file']");
+          fileInputs.forEach(fileInput => {
+            if (fileInput.id != "piu-overlay-file-input")
+              fileInput.addEventListener("click", handleFileInputClick);
+          });
+        }
+      })
+    })
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Other webpages report cursor coordinates as (0, 0) on input click (customized ones). So, need to record last known coordinates
+  document.addEventListener('click', event => {
+    clientX = event.clientX;
+    clientY = event.clientY;
+  });
+}
 
 // When input elements are clicked
 function handleFileInputClick(event) {
@@ -26,13 +55,32 @@ function handleFileInputClick(event) {
       overlay.innerHTML = html;
       document.body.appendChild(overlay);
 
-      // Position overlay's bottom-left to cursor position
+      // Position overlay's bottom-left to cursor position (default)
       const overlayContent = overlay.querySelector('.piu-overlay-content');
-      overlayContent.style.left = event.clientX + window.scrollX + (overlayContent.offsetWidth / 2) + 5 + 'px';
-      overlayContent.style.top = event.clientY + window.scrollY - (overlayContent.offsetHeight / 2) + 'px';
+      let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
+      let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
+
+      // If overlay is too much to the right / top, flip coordinates
+      const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
+      const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
+
+      if (tooMuchRight >= window.innerWidth)
+        overlayLeftPos -= overlayContent.offsetWidth;
+      if (tooMuchBottom >= window.innerHeight)
+      overlayBottomPos -= overlayContent.offsetHeight;
+
+      overlayContent.style.left = overlayLeftPos + 'px';
+      overlayContent.style.top = overlayBottomPos + 'px';
 
       // Close overlay when clicking outside of overlay-content
       document.addEventListener('click', closeOverlayOnClickOutside);
+
+      // Set click listener on overlay's upload button
+      const uploadBtn = overlay.querySelector('#piu-upload-btn');
+      uploadBtn.addEventListener('click', () => {
+        const fileInput = overlay.querySelector('#piu-overlay-file-input');
+        fileInput.click();
+      });
 
       // Handle file input in overlay
       const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
@@ -52,9 +100,8 @@ function handleFileInputClick(event) {
 
       overlay.addEventListener('dragleave', (event) => {
         const isChild = overlay.contains(event.relatedTarget);
-        if (!isChild) {
+        if (!isChild)
           PIU_dropText.style.display = 'none';
-        }
       });
 
       overlay.addEventListener('drop', (event) => {
@@ -97,7 +144,8 @@ function handleFileInputClick(event) {
             } else {
               // Remove noImage text since image is found
               const noImg = overlay.querySelector('#piu-not-image');
-              if (noImg) noImg.parentNode.removeChild(noImg);
+              if (noImg)
+                noImg.parentNode.removeChild(noImg);
               noImage(imagePreview);
             }
           })
@@ -108,7 +156,6 @@ function handleFileInputClick(event) {
       });
     });
   } catch (error) {
-    noImage(imagePreview);
     logging(error);
   }
 }
