@@ -7,13 +7,14 @@
     <style>
         .piu-overlay-content {
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            font-size: medium;
             position: absolute;
             padding: 6px;
             transform: translate(-50%, -50%);
             background-color: rgba(255, 255, 255, .75);
             backdrop-filter: blur(15px);
-            border-width: .5px solid #dee2e6;
-            border-radius: .4rem;
+            border: .5px solid #dee2e6;
+            border-radius: .5rem;
             box-shadow: 2px 6px 10px rgba(0,0,0,.05), 0 0 6px rgba(0,0,0,.05);
             overflow: hidden;
             text-align: center;
@@ -38,15 +39,16 @@
             left: 0;
             width: 100%;
             height: 100%;
-            font-weight: lighter;
+            font-weight: normal;
             background-color: rgb(100, 100, 100);
             color: white;
             display: none;
             justify-content: center;
             align-items: center;
             border: 2px dashed #ffffff;
-            border-radius: .4rem;
+            border-radius: .5rem;
             pointer-events: none;
+            box-sizing: border-box;
             z-index: 1;
         }
         #piu-drop-text svg {
@@ -57,7 +59,7 @@
             width: 240px;
             height: 135px;
             padding: 6px;
-            border-radius: .4rem;
+            border-radius: .5rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -68,7 +70,7 @@
         }
 
         #piu-image-preview {
-            border-radius: .4rem;
+            border-radius: .5rem;
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
@@ -83,12 +85,12 @@
         }
 
         #piu-upload {
-            font-weight: 500;
+            font-weight: normal;
         }
 
         .piu-menu-item {
             cursor: default;
-            border-radius: .4rem;
+            border-radius: .5rem;
             padding: 6px;
         }
         .piu-menu-item:hover {
@@ -115,7 +117,7 @@
 
         <!-- + Upload Image -->
         <input type="file" id="piu-overlay-file-input">
-        <div class="piu-menu-item" onclick="document.getElementById('piu-overlay-file-input').click();">
+        <div id="piu-upload-btn" class="piu-menu-item">
             <span id="piu-upload">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="piu-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
                 Upload File
