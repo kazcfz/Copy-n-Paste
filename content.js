@@ -27,8 +27,8 @@ function afterDOMLoaded(){
               fileInput.addEventListener("click", handleFileInputClick);
           });
         }
-      })
-    })
+      });
+    });
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
