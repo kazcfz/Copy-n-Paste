@@ -10,8 +10,7 @@
         "128": "./icons/icon128.png"
     },
     "permissions": [
-      "clipboardRead",
-      "activeTab"
+      "clipboardRead"
     ],
     "content_scripts": [
       {
