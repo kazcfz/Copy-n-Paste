@@ -114,6 +114,7 @@ function handleFileInputClick(event) {
       
       // Read images from clipboard and display in overlay
       const imagePreview = overlay.querySelector('#piu-image-container');
+      let noImg = overlay.querySelector('#piu-not-image');
       navigator.clipboard.read().then(clipboardItems => {
         clipboardItems.forEach(clipboardItem => {
           clipboardItem['types'].forEach(clipboardItemType => {
@@ -140,19 +141,23 @@ function handleFileInputClick(event) {
                   });
                 };
                 reader.readAsDataURL(blob);
+                // Remove noImage text since image is found
+                if (noImg)
+                  noImg.parentNode.removeChild(noImg);
               });
             } else {
-              // Remove noImage text since image is found
-              const noImg = overlay.querySelector('#piu-not-image');
-              if (noImg)
-                noImg.parentNode.removeChild(noImg);
-              noImage(imagePreview);
+              // Check if noImage text already exists
+              if (!noImg)
+                noImage(imagePreview);
+              noImg = overlay.querySelector('#piu-not-image');
             }
           })
         });
       }).catch(error => {
-        noImage(imagePreview);
-        logging("Is your clipboard empty?");
+        // Check if noImage text already exists
+        if (!noImg)
+          noImage(imagePreview);
+        noImg = overlay.querySelector('#piu-not-image');
       });
     });
   } catch (error) {
@@ -182,12 +187,12 @@ function closeOverlayOnClickOutside(event) {
 
 // Preview 'No image' message
 function noImage(imagePreview) {
-  const noImg = document.createElement('span');
-  noImg.id = 'piu-not-image';
-  noImg.textContent = 'Screenshot / Drop an image';
+  const PIU_notImage = document.createElement('span');
+  PIU_notImage.id = 'piu-not-image';
+  PIU_notImage.textContent = 'Screenshot / Drop an image';
 
   imagePreview.style.cursor = 'default';
-  imagePreview.appendChild(noImg);
+  imagePreview.appendChild(PIU_notImage);
 }
 
 // Trigger change event on original input to update value (such as disabled buttons)
