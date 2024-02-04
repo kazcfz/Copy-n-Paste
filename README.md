@@ -5,9 +5,7 @@
 <h3 align="center">Copy-n-Paste - Image Upload Simplified</h3>
 <br><br>
 
-<p>
-    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a>
-</p>
+<a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a>
 <br><br>
 
 
