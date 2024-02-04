@@ -1,15 +1,7 @@
-<p align="center">
-    <img src="https://i.imgur.com/U46jQaJ.png" alt="Paste Image Uploader" width="200" height="200">
-</p>
-
-<h3 align="center">Copy-n-Paste - Image Upload Simplified</h3>
-<br><br>
-
+<p align="center"><img src="https://i.imgur.com/M9eJymK.png" alt="Paste Image Uploader" width="75%" height="75%"></p>
 <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a>
-<br><br>
+<br><br><br><br>
 
-
-# Copy-n-Paste
 Copy-n-Paste is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to webpages, eliminating the prior need to save them as files.
 <p align="center"><img src="https://i.imgur.com/SPEYftv.png" alt="Screenshot Preview" width="600" height="375"></p>
 <br><br>
@@ -51,4 +43,3 @@ _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 ## Bugs and Feature requests
 Please fist check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
 If it's new, please [create a new issue](https://github.com/kazcfz/Paste-Image-Uploader/issues/new/choose).
-
