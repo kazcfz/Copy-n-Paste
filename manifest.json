@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Copy-n-Paste",
+    "name": "Copy-n-Paste - Image Upload Simplified",
     "version": "1.1.0",
     "description": "Simplify image upload from your clipboard directly to webpages.",
     "action": {},
