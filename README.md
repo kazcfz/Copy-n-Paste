@@ -32,7 +32,7 @@ Copy-n-Paste is a lightweight Chromium extension designed to simplify the proces
 _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 <br><br>
 
-## Getting Started
+## Getting Started (for developers/testers)
 1. Download and extract source code
 2. Visit the Extensions page
     - <sub>![](https://www.w3schools.com/images/compatible_chrome2020.png)</sub> `chrome://extensions`
