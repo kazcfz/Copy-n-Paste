@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Paste Image Uploader",
-    "version": "1.0.0",
-    "description": "Upload images directly from your clipboard",
+    "name": "Copy-n-Paste - Image Upload Simplified",
+    "version": "1.1.0",
+    "description": "Simplify image upload from your clipboard directly to webpages.",
     "action": {},
     "icons": {
         "16": "./icons/icon16.png",
@@ -15,6 +15,7 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
+        "exclude_matches": ["*://steamcommunity.com/id/*"],
         "js": ["content.js"]
       }
     ],

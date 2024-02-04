@@ -3,13 +3,43 @@ if(document.readyState === 'loading')
 else
   afterDOMLoaded();
 
+// Global variables 
+let clientX = 0;
+let clientY = 0;
+
 function afterDOMLoaded(){
-  // Prepare input file elements for extension use
+  // Prep all input file elements
   const fileInputs = document.querySelectorAll("input[type='file']");
-  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick) );
+  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick));
+
+  // Find and prep customized input file elements
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        // Checks if node is an input file element
+        if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
+          node.addEventListener("click", handleFileInputClick);
+        // Checks if sub-nodes/child are input file elements
+        else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
+          const fileInputs = node.querySelectorAll("input[type='file']");
+          fileInputs.forEach(fileInput => {
+            if (fileInput.id != "piu-overlay-file-input")
+              fileInput.addEventListener("click", handleFileInputClick);
+          });
+        }
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Record last know coord. Some webpages report coords as 0,0
+  document.addEventListener('click', event => {
+    clientX = event.clientX;
+    clientY = event.clientY;
+  });
 }
 
-// When input elements are clicked
+// When prepped input elements are clicked
 function handleFileInputClick(event) {
   event.preventDefault();
   const originalInput = event.target;
@@ -18,90 +48,168 @@ function handleFileInputClick(event) {
   const overlay = document.createElement('div');
   overlay.classList.add('overlay');
 
-  fetch(chrome.runtime.getURL('overlay.html'))
-  .then(response => response.text())
-  .then(html => {
-    overlay.innerHTML = html;
-    document.body.appendChild(overlay);
+  try {
+    fetch(chrome.runtime.getURL('overlay.html'))
+    .then(response => response.text())
+    .then(html => {
+      overlay.innerHTML = html;
+      document.body.appendChild(overlay);
 
-    // Position overlay's bottom-left to cursor position
-    const overlayContent = overlay.querySelector('.piu-overlay-content');
-    overlayContent.style.left = event.clientX + window.scrollX + (overlayContent.offsetWidth / 2) + 5 + 'px';
-    overlayContent.style.top = event.clientY + window.scrollY - (overlayContent.offsetHeight / 2) + 'px';
+      // Position overlay to cursor coord
+      const overlayContent = overlay.querySelector('.piu-overlay-content');
+      let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
+      let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
 
-    // Close overlay when clicking outside of overlay-content
-    document.addEventListener('click', closeOverlayOnClickOutside);
+      // Flip if overlay overshoots
+      const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
+      const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
 
-    // Handle file selection in overlay
-    const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
-    overlayFileInput.addEventListener('change', (event) => handleOverlayFileSelection(event, originalInput));
-    overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
+      if (tooMuchRight >= window.innerWidth)
+        overlayLeftPos -= overlayContent.offsetWidth;
+      if (tooMuchBottom >= window.innerHeight)
+      overlayBottomPos -= overlayContent.offsetHeight;
 
-    // Read images from clipboard and display in overlay
-    navigator.clipboard.read().then(clipboardItems => {
-      clipboardItems.forEach(clipboardItem => {
-        if (clipboardItems[0]['types'][0] == 'image/png') {
-          clipboardItem.getType('image/png').then(blob => {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-              const imagePreview = overlay.querySelector('#piu-image-container');
-              const img = document.createElement('img');
-              img.src = event.target.result;
-              img.id = 'piu-image-preview';
+      overlayContent.style.left = overlayLeftPos + 'px';
+      overlayContent.style.top = overlayBottomPos + 'px';
 
-              imagePreview.addEventListener('click', () => {
-                // Convert blob into file object
-                const file = new File([blob], 'screenshot.png', { type: blob.type });
+      // Close overlay when clicked outside
+      document.addEventListener('click', closeOverlayOnClickOutside);
 
-                const fileList = new DataTransfer();
-                fileList.items.add(file);
-                originalInput.files = fileList.files;
-                
-                // Trigger change event on original input to update its value
-                const changeEvent = new Event('change', { bubbles: true });
-                originalInput.dispatchEvent(changeEvent);
-                
-                closeOverlay()
-              });
-
-              imagePreview.appendChild(img);
-            };
-            reader.readAsDataURL(blob);
-          });
-        }
+      // Overlay upload click listener
+      const uploadBtn = overlay.querySelector('#piu-upload-btn');
+      uploadBtn.addEventListener('click', () => {
+        const fileInput = overlay.querySelector('#piu-overlay-file-input');
+        fileInput.click();
       });
-    }).catch(error => {
-      console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
-        '\nFailed to read clipboard. Was your last copy a screenshot?');
+
+      // Overlay handle file input
+      const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
+      overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
+      overlayFileInput.addEventListener('change', (event) => {
+        originalInput.files = event.target.files;
+        triggerChangeEvent(originalInput);
+        closeOverlay();
+      });
+
+      // Handle drag and drop
+      const PIU_dropText = overlay.querySelector('#piu-drop-text');
+      overlay.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        PIU_dropText.style.display = 'flex';
+      });
+
+      overlay.addEventListener('dragleave', (event) => {
+        const isChild = overlay.contains(event.relatedTarget);
+        if (!isChild)
+          PIU_dropText.style.display = 'none';
+      });
+
+      overlay.addEventListener('drop', (event) => {
+        event.preventDefault();
+        PIU_dropText.style.display = 'none';
+        const files = event.dataTransfer.files;
+        handleDroppedFiles(files, originalInput);
+        closeOverlay();
+      });
+      
+      // Read and preview clipboard image
+      const imagePreview = overlay.querySelector('#piu-image-container');
+      let noImg = overlay.querySelector('#piu-not-image');
+      navigator.clipboard.read().then(clipboardItems => {
+        clipboardItems.forEach(clipboardItem => {
+          clipboardItem['types'].forEach(clipboardItemType => {
+
+            if (clipboardItemType.startsWith('image/')) {
+              clipboardItem.getType('image/png').then(blob => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = document.createElement('img');
+                  img.src = event.target.result;
+                  img.id = 'piu-image-preview';
+
+                  imagePreview.style.cursor = 'pointer';
+                  imagePreview.appendChild(img);
+                  imagePreview.addEventListener('click', () => {
+                    // Convert blob into file object
+                    const file = new File([blob], 'pasted.png', { type: blob.type });
+                    const fileList = new DataTransfer();
+                    fileList.items.add(file);
+                    originalInput.files = fileList.files;
+                    
+                    triggerChangeEvent(originalInput);
+                    closeOverlay();
+                  });
+                };
+                reader.readAsDataURL(blob);
+                // Remove noImage text since image is found
+                if (noImg)
+                  noImg.parentNode.removeChild(noImg);
+              });
+            } else {
+              // Check if noImage text exists
+              if (!noImg)
+                noImage(imagePreview);
+              noImg = overlay.querySelector('#piu-not-image');
+            }
+          })
+        });
+      }).catch(error => {
+        // Check if noImage text exists
+        if (!noImg)
+          noImage(imagePreview);
+        noImg = overlay.querySelector('#piu-not-image');
+      });
     });
-  }).catch(error => {
-    console.log('%c📋 Paste Image Uploader:', 'font-weight: bold; font-size: 1.3em;',
-      '\nFetching error: "overlay.html"');
-  });;
+  } catch (error) {
+    logging(error);
+  }
 }
 
-// Close overlay
-function closeOverlay(){
+// Console logging for errors and messages
+function logging(message) {
+  console.log('%c📋 Paste Image Uploader:\n', 'font-weight: bold; font-size: 1.3em;', message);
+}
+
+// Close overlay immediate
+function closeOverlay() {
   const overlay = document.querySelector('.overlay');
   overlay.remove();
   document.removeEventListener('click', closeOverlayOnClickOutside);
 }
 
-// Close overlay when clicking outside of overlay-content
+// Close overlay when clicked outside
 function closeOverlayOnClickOutside(event) {
   const overlayContent = document.querySelector('.piu-overlay-content');
   if (!overlayContent.contains(event.target))
-    closeOverlay()
+    closeOverlay();
 }
 
-// Pass image selected in overlay, to original input file element
-function handleOverlayFileSelection(event, originalInput) {
-  const file = event.target.files[0];
-  originalInput.files = event.target.files;
+// Preview 'No image' message
+function noImage(imagePreview) {
+  const PIU_notImage = document.createElement('span');
+  PIU_notImage.id = 'piu-not-image';
+  PIU_notImage.textContent = 'Screenshot / Drop an image';
 
-  // Trigger change event on original input to update value (such as disabled buttons)
+  imagePreview.style.cursor = 'default';
+  imagePreview.appendChild(PIU_notImage);
+}
+
+// Trigger change event on original input to update value (like disabled buttons)
+function triggerChangeEvent(originalInput) {
   const changeEvent = new Event('change', { bubbles: true });
   originalInput.dispatchEvent(changeEvent);
+}
 
-  closeOverlay()
+// Put dropped file into original input element
+function handleDroppedFiles(files, originalInput) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.type.startsWith('image/')) {
+      const fileList = new DataTransfer();
+      fileList.items.add(file);
+      originalInput.files = fileList.files;
+
+      triggerChangeEvent(originalInput);
+    }
+  }
 }

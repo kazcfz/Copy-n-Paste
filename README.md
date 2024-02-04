@@ -1,18 +1,21 @@
 <p align="center">
-    <img src="https://i.imgur.com/U46jQaJ.png" alt="Paste Image Uploader" width="175" height="175">
+    <img src="https://i.imgur.com/U46jQaJ.png" alt="Paste Image Uploader" width="200" height="200">
 </p>
 
-<h3 align="center">Paste Image Uploader</h3>
-<p align="center">Instantly upload images from your clipboard.</p>
+<h3 align="center">Copy-n-Paste - Image Upload Simplified</h3>
 
-# Paste Image Uploader
-Paste Image Uploader is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to web forms, eliminating the need to save them as files first.
+# Copy-n-Paste
+Copy-n-Paste is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to webpages, eliminating the prior need to save them as files.
 <p align="center"><img src="https://i.imgur.com/SPEYftv.png" alt="Screenshot Preview" width="600" height="375"></p>
 <br><br>
 
 ## Features
-- **Lightweight** – Less than 0.02MB!
-- **Clean & Simple GUI** – Only 1 interface!
+- **Lightweight** – Only 0.02MB!
+- **Clean & Simple GUI** – 1 interface only!
+- **Screenshot upload** – Simply snap and select for swift uploading!
+- **Copy and paste** – Copy images from the web!
+- **Drag and drop** – Drag files directly from your computer!
+- **Wide cross-site compatibility** – Works on popular websites (Facebook, Instagram, Twitter, YouTube, and more)!
 <br><br>
 
 ## Compatibility
@@ -35,13 +38,12 @@ _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 <br><br>
 
 ## Usage
-1. Take a screenshot. Try <kbd>Print Screen</kbd>, or <kbd>⊞ Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+1. Take a screenshot, or copy an image online
 2. Select the file input element in a webpage
-3. Select the previewed screenshot, or '+ Upload Image' to choose from storage
+3. Select the previewed screenshot, or '+ Upload Image' to choose from storage, or drag a file over
 <br><br>
 
 ## Bugs and Feature requests
 Please fist check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
 If it's new, please [create a new issue](https://github.com/kazcfz/Paste-Image-Uploader/issues/new/choose).
-
 
