@@ -3,6 +3,13 @@
 </p>
 
 <h3 align="center">Copy-n-Paste - Image Upload Simplified</h3>
+<br><br>
+
+<p>
+    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a>
+</p>
+<br><br>
+
 
 # Copy-n-Paste
 Copy-n-Paste is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to webpages, eliminating the prior need to save them as files.
