@@ -41,5 +41,5 @@ _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 <br><br>
 
 ## Bugs and Feature requests
-Please fist check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
+Please first check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
 If it's new, please [create a new issue](https://github.com/kazcfz/Paste-Image-Uploader/issues/new/choose).
