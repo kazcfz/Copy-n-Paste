@@ -32,8 +32,8 @@ function afterDOMLoaded(){
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // Record last know coord. Some webpages report coords as 0,0
-  document.addEventListener('click', event => {
+  // Record last know coord. Some pages report coords as 0,0
+  document.addEventListener('mousemove', event => {
     clientX = event.clientX;
     clientY = event.clientY;
   });
@@ -59,6 +59,8 @@ function handleFileInputClick(event) {
       const overlayContent = overlay.querySelector('.piu-overlay-content');
       let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
       let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
+
+      console.log("Copy-n-Paste: \nX: ", clientX, "\nY: ", clientY)
 
       // Flip if overlay overshoots
       const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
