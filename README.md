@@ -1,16 +1,16 @@
 <p align="center"><img src="https://i.imgur.com/M9eJymK.png" alt="Paste Image Uploader" width="75%" height="75%"></p>
-<a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a>
+<p align="center"><a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a></p>
 <br><br><br><br>
 
 Copy-n-Paste is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to webpages, eliminating the prior need to save them as files.
-<p align="center"><img src="https://i.imgur.com/TXV2SuL.png" alt="Screenshot Preview" width="100%" height="100%"></p>
+<p align="center"><img src="https://i.imgur.com/TXV2SuL.png" alt="Screenshot Preview" width="49%" height="49%"> <img src="https://i.imgur.com/jqB4WFe.png" alt="Screenshot Preview" width="49%" height="49%"></p>
 <br><br>
 
 ## Features
 - **Lightweight** – Only 0.02MB!
 - **Clean & Simple GUI** – 1 interface only!
-- **Screenshot upload** – Simply snap and select for swift uploading!
-- **Copy and paste** – Copy images from the web!
+- **Screenshot upload** – Simply snap and upload!
+- **Copy and paste** – Copy images online!
 - **Drag and drop** – Drag files directly from your computer!
 - **Wide cross-site compatibility** – Works on popular websites (Facebook, Instagram, Twitter, YouTube, and more)!
 <br><br>
