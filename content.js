@@ -23,7 +23,7 @@ function afterDOMLoaded(){
         else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
           const fileInputs = node.querySelectorAll("input[type='file']");
           fileInputs.forEach(fileInput => {
-            if (fileInput.id != "piu-overlay-file-input")
+            if (fileInput.id != "cnp-overlay-file-input")
               fileInput.addEventListener("click", handleFileInputClick);
           });
         }
@@ -32,8 +32,8 @@ function afterDOMLoaded(){
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // Record last know coord. Some webpages report coords as 0,0
-  document.addEventListener('click', event => {
+  // Record last know coord. Some pages report coords as 0,0
+  document.addEventListener('mousemove', event => {
     clientX = event.clientX;
     clientY = event.clientY;
   });
@@ -56,7 +56,7 @@ function handleFileInputClick(event) {
       document.body.appendChild(overlay);
 
       // Position overlay to cursor coord
-      const overlayContent = overlay.querySelector('.piu-overlay-content');
+      const overlayContent = overlay.querySelector('.cnp-overlay-content');
       let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
       let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
 
@@ -76,14 +76,14 @@ function handleFileInputClick(event) {
       document.addEventListener('click', closeOverlayOnClickOutside);
 
       // Overlay upload click listener
-      const uploadBtn = overlay.querySelector('#piu-upload-btn');
+      const uploadBtn = overlay.querySelector('#cnp-upload-btn');
       uploadBtn.addEventListener('click', () => {
-        const fileInput = overlay.querySelector('#piu-overlay-file-input');
+        const fileInput = overlay.querySelector('#cnp-overlay-file-input');
         fileInput.click();
       });
 
       // Overlay handle file input
-      const overlayFileInput = overlay.querySelector('#piu-overlay-file-input');
+      const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
       overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
       overlayFileInput.addEventListener('change', (event) => {
         originalInput.files = event.target.files;
@@ -92,29 +92,29 @@ function handleFileInputClick(event) {
       });
 
       // Handle drag and drop
-      const PIU_dropText = overlay.querySelector('#piu-drop-text');
+      const CNP_dropText = overlay.querySelector('#cnp-drop-text');
       overlay.addEventListener('dragover', (event) => {
         event.preventDefault();
-        PIU_dropText.style.display = 'flex';
+        CNP_dropText.style.display = 'flex';
       });
 
       overlay.addEventListener('dragleave', (event) => {
         const isChild = overlay.contains(event.relatedTarget);
         if (!isChild)
-          PIU_dropText.style.display = 'none';
+          CNP_dropText.style.display = 'none';
       });
 
       overlay.addEventListener('drop', (event) => {
         event.preventDefault();
-        PIU_dropText.style.display = 'none';
+        CNP_dropText.style.display = 'none';
         const files = event.dataTransfer.files;
         handleDroppedFiles(files, originalInput);
         closeOverlay();
       });
       
       // Read and preview clipboard image
-      const imagePreview = overlay.querySelector('#piu-image-container');
-      let noImg = overlay.querySelector('#piu-not-image');
+      const imagePreview = overlay.querySelector('#cnp-image-container');
+      let noImg = overlay.querySelector('#cnp-not-image');
       navigator.clipboard.read().then(clipboardItems => {
         clipboardItems.forEach(clipboardItem => {
           clipboardItem['types'].forEach(clipboardItemType => {
@@ -125,7 +125,7 @@ function handleFileInputClick(event) {
                 reader.onload = (event) => {
                   const img = document.createElement('img');
                   img.src = event.target.result;
-                  img.id = 'piu-image-preview';
+                  img.id = 'cnp-image-preview';
 
                   imagePreview.style.cursor = 'pointer';
                   imagePreview.appendChild(img);
@@ -149,7 +149,7 @@ function handleFileInputClick(event) {
               // Check if noImage text exists
               if (!noImg)
                 noImage(imagePreview);
-              noImg = overlay.querySelector('#piu-not-image');
+              noImg = overlay.querySelector('#cnp-not-image');
             }
           })
         });
@@ -157,7 +157,7 @@ function handleFileInputClick(event) {
         // Check if noImage text exists
         if (!noImg)
           noImage(imagePreview);
-        noImg = overlay.querySelector('#piu-not-image');
+        noImg = overlay.querySelector('#cnp-not-image');
       });
     });
   } catch (error) {
@@ -174,24 +174,25 @@ function logging(message) {
 function closeOverlay() {
   const overlay = document.querySelector('.overlay');
   overlay.remove();
-  document.removeEventListener('click', closeOverlayOnClickOutside);
 }
 
 // Close overlay when clicked outside
 function closeOverlayOnClickOutside(event) {
-  const overlayContent = document.querySelector('.piu-overlay-content');
-  if (!overlayContent.contains(event.target))
+  let overlayContent = document.querySelector('.cnp-overlay-content');
+  while (overlayContent && !overlayContent.contains(event.target)) {
     closeOverlay();
+    overlayContent = document.querySelector('.cnp-overlay-content');
+  }
 }
 
 // Preview 'No image' message
 function noImage(imagePreview) {
-  const PIU_notImage = document.createElement('span');
-  PIU_notImage.id = 'piu-not-image';
-  PIU_notImage.textContent = 'Screenshot / Drop an image';
+  const CNP_notImage = document.createElement('span');
+  CNP_notImage.id = 'cnp-not-image';
+  CNP_notImage.textContent = 'Screenshot / Drop an image';
 
   imagePreview.style.cursor = 'default';
-  imagePreview.appendChild(PIU_notImage);
+  imagePreview.appendChild(CNP_notImage);
 }
 
 // Trigger change event on original input to update value (like disabled buttons)

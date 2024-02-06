@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Paste Image Uploader</title>
     <style>
-        .piu-overlay-content {
+        .cnp-overlay-content {
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
             font-size: medium;
             position: absolute;
@@ -23,10 +23,10 @@
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
-            z-index: 999;
+            z-index: 2147483647;
         }
 
-        .piu-hr {
+        .cnp-hr {
             margin: 0.25rem 0;
             color: inherit;
             border: 0;
@@ -34,7 +34,7 @@
             opacity: .25;
         }
 
-        #piu-drop-text {
+        #cnp-drop-text {
             position: absolute;
             top: 0;
             left: 0;
@@ -52,11 +52,11 @@
             box-sizing: border-box;
             z-index: 1;
         }
-        #piu-drop-text svg {
+        #cnp-drop-text svg {
             margin-right: 7px;
         }
 
-        #piu-image-container {
+        #cnp-image-container {
             width: 240px;
             height: 135px;
             padding: 6px;
@@ -65,62 +65,62 @@
             align-items: center;
             justify-content: center;
         }
-        #piu-image-container:hover {
+        #cnp-image-container:hover {
             background-color: rgba(0, 0, 0, .05);
             filter: brightness(.95);
         }
 
-        #piu-image-preview {
+        #cnp-image-preview {
             border-radius: .5rem;
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
         }
 
-        #piu-not-image{
+        #cnp-not-image{
             font-weight: lighter;
         }
 
-        #piu-overlay-file-input {
+        #cnp-overlay-file-input {
             display: none;
         }
 
-        #piu-upload {
+        #cnp-upload {
             font-weight: normal;
         }
 
-        .piu-menu-item {
+        .cnp-menu-item {
             cursor: default;
             border-radius: .5rem;
             padding: 6px;
         }
-        .piu-menu-item:hover {
+        .cnp-menu-item:hover {
             background-color: rgba(0, 0, 0, .05);
         }
         
-        .piu-bi {
+        .cnp-bi {
             vertical-align: -.125em;
         }
     </style>
 </head>
 
 <body>
-    <div class="piu-overlay-content">
-        <span id="piu-drop-text">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="piu-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
+    <div class="cnp-overlay-content">
+        <span id="cnp-drop-text">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="cnp-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
             Drop files here
         </span>
         
         <!-- Image Container & Preview -->
-        <div id="piu-image-container"></div>
+        <div id="cnp-image-container"></div>
 
-        <hr class="piu-hr">
+        <hr class="cnp-hr">
 
         <!-- + Upload Image -->
-        <input type="file" id="piu-overlay-file-input">
-        <div id="piu-upload-btn" class="piu-menu-item">
-            <span id="piu-upload">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="piu-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
+        <input type="file" id="cnp-overlay-file-input">
+        <div id="cnp-upload-btn" class="cnp-menu-item">
+            <span id="cnp-upload">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="cnp-bi bi-plus-lg" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
                 Upload File
             </span>
         </div>
