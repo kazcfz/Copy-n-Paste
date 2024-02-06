@@ -36,6 +36,7 @@ function afterDOMLoaded(){
   document.addEventListener('mousemove', event => {
     clientX = event.clientX;
     clientY = event.clientY;
+    // console.log("Copy-n-Paste: \nX: ", clientX, "\nY: ", clientY);
   });
 }
 
@@ -176,14 +177,15 @@ function logging(message) {
 function closeOverlay() {
   const overlay = document.querySelector('.overlay');
   overlay.remove();
-  document.removeEventListener('click', closeOverlayOnClickOutside);
 }
 
 // Close overlay when clicked outside
 function closeOverlayOnClickOutside(event) {
-  const overlayContent = document.querySelector('.piu-overlay-content');
-  if (!overlayContent.contains(event.target))
+  let overlayContent = document.querySelector('.piu-overlay-content');
+  while (overlayContent && !overlayContent.contains(event.target)) {
     closeOverlay();
+    overlayContent = document.querySelector('.piu-overlay-content');
+  }
 }
 
 // Preview 'No image' message
