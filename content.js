@@ -116,34 +116,42 @@ function handleFileInputClick(event) {
       const imagePreview = overlay.querySelector('#cnp-image-container');
       let noImg = overlay.querySelector('#cnp-not-image');
       navigator.clipboard.read().then(clipboardItems => {
+        console.log(clipboardItems)
         clipboardItems.forEach(clipboardItem => {
           clipboardItem['types'].forEach(clipboardItemType => {
 
             if (clipboardItemType.startsWith('image/')) {
               clipboardItem.getType('image/png').then(blob => {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const img = document.createElement('img');
-                  img.src = event.target.result;
-                  img.id = 'cnp-image-preview';
+                if (blob) {
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.id = 'cnp-image-preview';
 
-                  imagePreview.style.cursor = 'pointer';
-                  imagePreview.appendChild(img);
-                  imagePreview.addEventListener('click', () => {
-                    // Convert blob into file object
-                    const file = new File([blob], 'pasted.png', { type: blob.type });
-                    const fileList = new DataTransfer();
-                    fileList.items.add(file);
-                    originalInput.files = fileList.files;
-                    
-                    triggerChangeEvent(originalInput);
-                    closeOverlay();
-                  });
-                };
-                reader.readAsDataURL(blob);
-                // Remove noImage text since image is found
-                if (noImg)
-                  noImg.parentNode.removeChild(noImg);
+                    imagePreview.style.cursor = 'pointer';
+                    imagePreview.appendChild(img);
+                    imagePreview.addEventListener('click', () => {
+                      // Convert blob into file object
+                      const file = new File([blob], 'pasted.png', { type: blob.type });
+                      const fileList = new DataTransfer();
+                      fileList.items.add(file);
+                      originalInput.files = fileList.files;
+                      
+                      triggerChangeEvent(originalInput);
+                      closeOverlay();
+                    });
+                  };
+                  reader.readAsDataURL(blob);
+                  // Remove noImage text since image is found
+                  if (noImg)
+                    noImg.parentNode.removeChild(noImg);
+                } else {
+                  // Check if noImage text exists
+                  if (!noImg)
+                    noImage(imagePreview);
+                  noImg = overlay.querySelector('#cnp-not-image');
+                }
               });
             } else {
               // Check if noImage text exists
