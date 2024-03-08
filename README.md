@@ -21,6 +21,7 @@ Copy-n-Paste is a lightweight Chromium extension designed to simplify the proces
 | <sub>![](https://www.w3schools.com/images/compatible_chrome2020.png)</sub> Chrome  | **✓** |
 | <sub>![](https://www.w3schools.com/images/compatible_edge2020.png)</sub> Edge      | **✓** |
 | <sub>![](https://i.imgur.com/4aFSIAT.png)</sub> Brave                              | **✓** |
+| <sub>![](https://i.imgur.com/xAa2JH0.png)</sub> Vivaldi                            | **✓** |
 
 _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 <br><br>
