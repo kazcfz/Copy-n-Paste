@@ -9,8 +9,10 @@ let clientY = 0;
 
 function afterDOMLoaded(){
   // Prep all input file elements
-  const fileInputs = document.querySelectorAll("input[type='file']");
-  fileInputs.forEach(input => input.addEventListener('click', handleFileInputClick));
+  document.addEventListener("click", event => {
+    if (event.target.id != "cnp-overlay-file-input" && event.target.tagName.toLowerCase() === "input" && event.target.type === "file")
+      event.target.addEventListener("click", handleFileInputClick);
+  }, true);
 
   // Find and prep customized input file elements
   const observer = new MutationObserver(mutations => {
@@ -42,6 +44,7 @@ function afterDOMLoaded(){
 // When prepped input elements are clicked
 function handleFileInputClick(event) {
   event.preventDefault();
+  event.stopPropagation();
   const originalInput = event.target;
 
   // Create overlay
@@ -116,7 +119,6 @@ function handleFileInputClick(event) {
       const imagePreview = overlay.querySelector('#cnp-image-container');
       let noImg = overlay.querySelector('#cnp-not-image');
       navigator.clipboard.read().then(clipboardItems => {
-        console.log(clipboardItems)
         clipboardItems.forEach(clipboardItem => {
           clipboardItem['types'].forEach(clipboardItemType => {
 
