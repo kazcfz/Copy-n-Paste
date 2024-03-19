@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Copy-n-Paste: Image Upload Simplified",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "description": "Easily upload screenshots and images from your clipboard to webpages.",
     "action": {},
     "icons": {
@@ -15,7 +15,7 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "exclude_matches": ["*://steamcommunity.com/id/*"],
+        "exclude_matches": ["*://steamcommunity.com/id/*", "*://web.whatsapp.com/*"],
         "js": ["content.js"]
       }
     ],
