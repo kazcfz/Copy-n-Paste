@@ -7,7 +7,7 @@ Copy-n-Paste is a lightweight Chromium extension designed to simplify the proces
 <br><br>
 
 ## Features
-- **Lightweight** – Only 0.02MB!
+- **Lightweight** – Less than 0.02MB!
 - **Clean & Simple GUI** – 1 interface only!
 - **Screenshot upload** – Simply snap and upload!
 - **Copy and paste** – Copy images online!
