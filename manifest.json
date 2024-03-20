@@ -16,6 +16,7 @@
       {
         "matches": ["<all_urls>"],
         "exclude_matches": ["*://steamcommunity.com/id/*", "*://web.whatsapp.com/*"],
+        "all_frames": true,
         "js": ["content.js"]
       }
     ],
