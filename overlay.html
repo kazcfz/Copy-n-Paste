@@ -28,9 +28,10 @@
         .cnp-hr {
             margin: 0.25rem 0;
             color: inherit;
+            opacity: .25;
             border: 0;
             border-top: .5px solid;
-            opacity: .25;
+            border-bottom: .5px solid;
         }
 
         #cnp-drop-text {
@@ -101,6 +102,24 @@
         
         .cnp-bi {
             vertical-align: -.125em;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .cnp-overlay-content {
+                background-color: rgba(25, 25, 25, .85);
+                color: white;
+                border: .5px solid #636363;
+                backdrop-filter: blur(50px);
+            }
+
+            #cnp-image-container:hover {
+                background-color: rgba(255, 255, 255, .1);
+                filter: brightness(1);
+            }
+
+            .cnp-menu-item:hover {
+                background-color: rgba(255, 255, 255, .1);
+            }
         }
     </style>
 </head>
