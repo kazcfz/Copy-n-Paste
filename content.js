@@ -44,12 +44,37 @@ function afterDOMLoaded(){
 // When prepped input elements are clicked
 function handleFileInputClick(event) {
   event.preventDefault();
-  event.stopPropagation();
   const originalInput = event.target;
 
   // Create overlay
   const overlay = document.createElement('div');
   overlay.classList.add('overlay');
+
+  // Handle paste action
+  document.addEventListener("paste", () => {
+    let overlayContent = document.querySelector('.cnp-overlay-content');
+    if (overlayContent) {
+      navigator.clipboard.read().then(clipboardItems => 
+        clipboardItems.forEach(clipboardItem => 
+          clipboardItem['types'].forEach(clipboardItemType =>
+            clipboardItemType.startsWith('image/') && clipboardItem.getType('image/png').then(blob => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  // Convert blob into file object
+                  const file = new File([blob], 'pasted.png', { type: blob.type });
+                  const fileList = new DataTransfer();
+                  fileList.items.add(file);
+                  originalInput.files = fileList.files;
+                  closeOverlay();
+                  triggerChangeEvent(originalInput);
+                };
+                reader.readAsDataURL(blob);
+            })
+          )
+        )
+      )
+    }
+  });
 
   try {
     fetch(chrome.runtime.getURL('overlay.html'))
@@ -76,7 +101,13 @@ function handleFileInputClick(event) {
       overlayContent.style.top = overlayBottomPos + 'px';
 
       // Close overlay when clicked outside
-      document.addEventListener('click', closeOverlayOnClickOutside);
+      document.addEventListener('click', event => {
+        let overlayContent = document.querySelector('.cnp-overlay-content');
+        while (overlayContent && !overlayContent.contains(event.target)) {
+          closeOverlay();
+          overlayContent = document.querySelector('.cnp-overlay-content');
+        }
+      });
 
       // Overlay upload click listener
       const uploadBtn = overlay.querySelector('#cnp-upload-btn');
@@ -88,7 +119,7 @@ function handleFileInputClick(event) {
       // Overlay handle file input
       const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
       overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-      overlayFileInput.addEventListener('change', (event) => {
+      overlayFileInput.addEventListener('change', event => {
         originalInput.files = event.target.files;
         triggerChangeEvent(originalInput);
         closeOverlay();
@@ -96,18 +127,18 @@ function handleFileInputClick(event) {
 
       // Handle drag and drop
       const CNP_dropText = overlay.querySelector('#cnp-drop-text');
-      overlay.addEventListener('dragover', (event) => {
+      overlay.addEventListener('dragover', event => {
         event.preventDefault();
         CNP_dropText.style.display = 'flex';
       });
 
-      overlay.addEventListener('dragleave', (event) => {
+      overlay.addEventListener('dragleave', event => {
         const isChild = overlay.contains(event.relatedTarget);
         if (!isChild)
           CNP_dropText.style.display = 'none';
       });
 
-      overlay.addEventListener('drop', (event) => {
+      overlay.addEventListener('drop', event => {
         event.preventDefault();
         CNP_dropText.style.display = 'none';
         const files = event.dataTransfer.files;
@@ -119,14 +150,13 @@ function handleFileInputClick(event) {
       const imagePreview = overlay.querySelector('#cnp-image-container');
       let noImg = overlay.querySelector('#cnp-not-image');
       navigator.clipboard.read().then(clipboardItems => {
-        clipboardItems.forEach(clipboardItem => {
+        clipboardItems.forEach(clipboardItem => 
           clipboardItem['types'].forEach(clipboardItemType => {
-
             if (clipboardItemType.startsWith('image/')) {
               clipboardItem.getType('image/png').then(blob => {
                 if (blob) {
                   const reader = new FileReader();
-                  reader.onload = (event) => {
+                  reader.onload = event => {
                     const img = document.createElement('img');
                     img.src = event.target.result;
                     img.id = 'cnp-image-preview';
@@ -162,7 +192,7 @@ function handleFileInputClick(event) {
               noImg = overlay.querySelector('#cnp-not-image');
             }
           })
-        });
+        );
       }).catch(error => {
         // Check if noImage text exists
         if (!noImg)
@@ -182,16 +212,10 @@ function logging(message) {
 
 // Close overlay immediate
 function closeOverlay() {
-  const overlay = document.querySelector('.overlay');
-  overlay.remove();
-}
-
-// Close overlay when clicked outside
-function closeOverlayOnClickOutside(event) {
-  let overlayContent = document.querySelector('.cnp-overlay-content');
-  while (overlayContent && !overlayContent.contains(event.target)) {
-    closeOverlay();
-    overlayContent = document.querySelector('.cnp-overlay-content');
+  let overlay = document.querySelector('.overlay');
+  while (overlay) {
+    overlay.remove();
+    overlay = document.querySelector('.overlay');
   }
 }
 
@@ -215,12 +239,10 @@ function triggerChangeEvent(originalInput) {
 function handleDroppedFiles(files, originalInput) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (file.type.startsWith('image/')) {
-      const fileList = new DataTransfer();
-      fileList.items.add(file);
-      originalInput.files = fileList.files;
+    const fileList = new DataTransfer();
+    fileList.items.add(file);
+    originalInput.files = fileList.files;
 
-      triggerChangeEvent(originalInput);
-    }
+    triggerChangeEvent(originalInput);
   }
 }
