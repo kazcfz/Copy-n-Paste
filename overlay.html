@@ -9,7 +9,6 @@
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
             font-size: medium;
             position: absolute;
-            padding: 6px;
             transform: translate(-50%, -50%);
             background-color: rgba(255, 255, 255, .75);
             backdrop-filter: blur(15px);
@@ -29,9 +28,10 @@
         .cnp-hr {
             margin: 0.25rem 0;
             color: inherit;
+            opacity: .25;
             border: 0;
             border-top: .5px solid;
-            opacity: .25;
+            border-bottom: .5px solid;
         }
 
         #cnp-drop-text {
@@ -60,6 +60,7 @@
             width: 240px;
             height: 135px;
             padding: 6px;
+            margin: 5px;
             border-radius: .5rem;
             display: flex;
             align-items: center;
@@ -93,6 +94,7 @@
             cursor: default;
             border-radius: .5rem;
             padding: 6px;
+            margin: 5px;
         }
         .cnp-menu-item:hover {
             background-color: rgba(0, 0, 0, .05);
@@ -100,6 +102,24 @@
         
         .cnp-bi {
             vertical-align: -.125em;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .cnp-overlay-content {
+                background-color: rgba(25, 25, 25, .85);
+                color: white;
+                border: .5px solid #636363;
+                backdrop-filter: blur(50px);
+            }
+
+            #cnp-image-container:hover {
+                background-color: rgba(255, 255, 255, .1);
+                filter: brightness(1);
+            }
+
+            .cnp-menu-item:hover {
+                background-color: rgba(255, 255, 255, .1);
+            }
         }
     </style>
 </head>
