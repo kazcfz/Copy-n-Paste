@@ -54,6 +54,12 @@ function handleFileInputClick(event) {
   document.addEventListener("paste", () => {
     let overlayContent = document.querySelector('.cnp-overlay-content');
     if (overlayContent) {
+      const fileList = new DataTransfer();
+
+      // Include previously selected files for multi-file
+      for (const file of originalInput.files)
+        fileList.items.add(file);
+
       navigator.clipboard.read().then(clipboardItems => 
         clipboardItems.forEach(clipboardItem => 
           clipboardItem['types'].forEach(clipboardItemType =>
@@ -61,8 +67,7 @@ function handleFileInputClick(event) {
                 const reader = new FileReader();
                 reader.onload = () => {
                   // Convert blob into file object
-                  const file = new File([blob], 'pasted.png', { type: blob.type });
-                  const fileList = new DataTransfer();
+                  const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, ''), { type: blob.type });
                   fileList.items.add(file);
                   originalInput.files = fileList.files;
                   closeOverlay();
@@ -124,6 +129,10 @@ function handleFileInputClick(event) {
         triggerChangeEvent(originalInput);
         closeOverlay();
       });
+      if (originalInput.multiple)
+        overlayFileInput.multiple = true;
+      else
+        overlayFileInput.multiple = false;
 
       // Handle drag and drop
       const CNP_dropText = overlay.querySelector('#cnp-drop-text');
@@ -165,8 +174,12 @@ function handleFileInputClick(event) {
                     imagePreview.appendChild(img);
                     imagePreview.addEventListener('click', () => {
                       // Convert blob into file object
-                      const file = new File([blob], 'pasted.png', { type: blob.type });
+                      const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, ''), { type: blob.type });
                       const fileList = new DataTransfer();
+                      
+                      // Include previously selected files for multi-file
+                      for (const file of originalInput.files)
+                        fileList.items.add(file);
                       fileList.items.add(file);
                       originalInput.files = fileList.files;
                       
@@ -207,12 +220,13 @@ function handleFileInputClick(event) {
 
 // Console logging for errors and messages
 function logging(message) {
-  console.log('%c📋 Paste Image Uploader:\n', 'font-weight: bold; font-size: 1.3em;', message);
+  console.log('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message);
 }
 
 // Close overlay immediate
 function closeOverlay() {
   let overlay = document.querySelector('.overlay');
+
   while (overlay) {
     overlay.remove();
     overlay = document.querySelector('.overlay');
@@ -237,12 +251,14 @@ function triggerChangeEvent(originalInput) {
 
 // Put dropped file into original input element
 function handleDroppedFiles(files, originalInput) {
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const fileList = new DataTransfer();
-    fileList.items.add(file);
-    originalInput.files = fileList.files;
+  const fileList = new DataTransfer();
 
-    triggerChangeEvent(originalInput);
-  }
+  // Include previously selected files for multi-file
+  for (const file of originalInput.files)
+    fileList.items.add(file);
+
+  for (let i = 0; i < files.length; i++)
+    fileList.items.add(files[i]);
+  originalInput.files = fileList.files;
+  triggerChangeEvent(originalInput);
 }
