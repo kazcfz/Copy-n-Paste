@@ -67,7 +67,7 @@ function handleFileInputClick(event) {
                 const reader = new FileReader();
                 reader.onload = () => {
                   // Convert blob into file object
-                  const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, ''), { type: blob.type });
+                  const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
                   fileList.items.add(file);
                   originalInput.files = fileList.files;
                   closeOverlay();
@@ -174,7 +174,7 @@ function handleFileInputClick(event) {
                     imagePreview.appendChild(img);
                     imagePreview.addEventListener('click', () => {
                       // Convert blob into file object
-                      const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, ''), { type: blob.type });
+                      const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
                       const fileList = new DataTransfer();
                       
                       // Include previously selected files for multi-file
