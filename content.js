@@ -7,7 +7,7 @@ else
 let clientX = 0;
 let clientY = 0;
 
-function afterDOMLoaded(){
+function afterDOMLoaded() {
   // Prep all input file elements
   document.addEventListener("click", event => {
     if (event.target.id != "cnp-overlay-file-input" && event.target.tagName.toLowerCase() === "input" && event.target.type === "file")
@@ -56,7 +56,7 @@ function handleFileInputClick(event) {
     if (overlayContent) {
       const fileList = new DataTransfer();
 
-      // Include previously selected files for multi-file
+      // Reattach previous files
       for (const file of originalInput.files)
         fileList.items.add(file);
 
@@ -117,22 +117,33 @@ function handleFileInputClick(event) {
       // Overlay upload click listener
       const uploadBtn = overlay.querySelector('#cnp-upload-btn');
       uploadBtn.addEventListener('click', () => {
-        const fileInput = overlay.querySelector('#cnp-overlay-file-input');
-        fileInput.click();
+        overlayFileInput.click();
       });
 
       // Overlay handle file input
       const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
       overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
       overlayFileInput.addEventListener('change', event => {
-        originalInput.files = event.target.files;
+        const fileList = new DataTransfer();
+
+        // Reattach previous files
+        for (const file of originalInput.files)
+          fileList.items.add(file);
+
+        // Attach new files
+        for (const file of event.target.files)
+          fileList.items.add(file);
+
+        originalInput.files = fileList.files;
+        console.log(fileList.files)
         triggerChangeEvent(originalInput);
         closeOverlay();
       });
-      if (originalInput.multiple)
-        overlayFileInput.multiple = true;
-      else
-        overlayFileInput.multiple = false;
+      
+      // if (originalInput.multiple)
+      //   overlayFileInput.multiple = true;
+      // else
+      //   overlayFileInput.multiple = false;
 
       // Handle drag and drop
       const CNP_dropText = overlay.querySelector('#cnp-drop-text');
@@ -252,13 +263,15 @@ function triggerChangeEvent(originalInput) {
 // Put dropped file into original input element
 function handleDroppedFiles(files, originalInput) {
   const fileList = new DataTransfer();
-
-  // Include previously selected files for multi-file
+  
+  // Reattach previous files
   for (const file of originalInput.files)
     fileList.items.add(file);
 
-  for (let i = 0; i < files.length; i++)
-    fileList.items.add(files[i]);
+  // Attach new files
+  for (const file of files)
+    fileList.items.add(file);
+
   originalInput.files = fileList.files;
   triggerChangeEvent(originalInput);
 }
