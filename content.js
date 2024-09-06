@@ -41,20 +41,91 @@ function afterDOMLoaded() {
   });
 }
 
+// Ctrl + V listener
+let ctrlVdata = null;
+function ctrlV(event) {
+  const overlayContent = document.querySelector('.cnp-overlay-content');
+  if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
+    if (ctrlVdata.files) {
+      Array.prototype.forEach.call(ctrlVdata.files, blob => {
+        const reader = new FileReader();
+        let fileName = blob.name;
+        if (blob.name == 'image.png' || !blob.name)
+          fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop()
+        reader.onload = () => {
+          // Convert blob into file object
+          const file = new File([blob], fileName, { type: blob.type });
+          const fileList = new DataTransfer();
+          
+          // Include previously selected files for multi-file
+          for (const file of originalInput.files)
+            fileList.items.add(file);
+          fileList.items.add(file);
+          originalInput.files = fileList.files;
+          
+          triggerChangeEvent(originalInput);
+          closeOverlay();
+        };
+        reader.readAsDataURL(blob);
+      });
+    }
+  }
+}
+
+// Preview copied image in overlay
+function previewImage(event, blob) {
+  const imagePreview = document.querySelector('#cnp-image-container');
+  const img = imagePreview.querySelector('#cnp-image-preview');
+  img.src = event.target.result;
+
+  imagePreview.style.cursor = 'pointer';
+  imagePreview.addEventListener('click', () => {
+    // Convert blob into file object
+    let fileName = blob.name;
+    if (blob.name == 'image.png' || !blob.name)
+      fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop()
+    
+    const file = new File([blob], fileName, { type: blob.type });
+    const fileList = new DataTransfer();
+    
+    // Include previously selected files for multi-file
+    for (const file of originalInput.files)
+      fileList.items.add(file);
+    fileList.items.add(file);
+    originalInput.files = fileList.files;
+    
+    triggerChangeEvent(originalInput);
+    closeOverlay();
+  }, {once: true});
+}
+
+// Clones event objects
+function cloneEvent(e) {
+  if (e===undefined || e===null) return undefined;
+  function ClonedEvent() {};  
+  let clone=new ClonedEvent();
+  for (let p in e) {
+      let d=Object.getOwnPropertyDescriptor(e, p);
+      if (d && (d.get || d.set)) Object.defineProperty(clone, p, d); else clone[p] = e[p];
+  }
+  Object.setPrototypeOf(clone, e);
+  return clone;
+}
+
 // When prepped input elements are clicked
 function handleFileInputClick(event) {
   event.preventDefault();
-  const originalInput = event.target;
+  originalInput = event.target;
 
   // Create overlay
   const overlay = document.createElement('div');
-  overlay.classList.add('overlay');
+  overlay.classList.add('cnp-overlay');
 
   // Handle paste action
-  document.addEventListener("paste", () => {
-    let overlayContent = document.querySelector('.cnp-overlay-content');
+  document.addEventListener('paste', event => {
+    const overlayContent = document.querySelector('.cnp-overlay-content');
     if (overlayContent) {
-      const fileList = new DataTransfer();
+      /*const fileList = new DataTransfer();
 
       // Reattach previous files
       for (const file of originalInput.files)
@@ -77,9 +148,24 @@ function handleFileInputClick(event) {
             })
           )
         )
-      )
+      )*/
+
+      // the cooler clipboard api
+      const dataTransfer = event.clipboardData;
+      if (dataTransfer.files) {
+        // ctrlVdata = event.clipboardData;
+        ctrlVdata = cloneEvent(event.clipboardData);
+        Array.prototype.forEach.call(dataTransfer.files, file => {
+          const reader = new FileReader();
+          reader.onload = event => previewImage(event, file);
+          reader.readAsDataURL(file);
+        });
+      }
     }
-  });
+  }, { once: true });
+
+  // Handle Ctrl+V action
+  document.addEventListener('keydown', ctrlV);
 
   try {
     fetch(chrome.runtime.getURL('overlay.html'))
@@ -100,7 +186,7 @@ function handleFileInputClick(event) {
       if (tooMuchRight >= window.innerWidth)
         overlayLeftPos -= overlayContent.offsetWidth;
       if (tooMuchBottom >= window.innerHeight)
-      overlayBottomPos -= overlayContent.offsetHeight;
+        overlayBottomPos -= overlayContent.offsetHeight;
 
       overlayContent.style.left = overlayLeftPos + 'px';
       overlayContent.style.top = overlayBottomPos + 'px';
@@ -135,15 +221,14 @@ function handleFileInputClick(event) {
           fileList.items.add(file);
 
         originalInput.files = fileList.files;
-        console.log(fileList.files)
         triggerChangeEvent(originalInput);
         closeOverlay();
       });
       
-      // if (originalInput.multiple)
-      //   overlayFileInput.multiple = true;
-      // else
-      //   overlayFileInput.multiple = false;
+      /*if (originalInput.multiple)
+        overlayFileInput.multiple = true;
+      else
+        overlayFileInput.multiple = false;*/
 
       // Handle drag and drop
       const CNP_dropText = overlay.querySelector('#cnp-drop-text');
@@ -166,9 +251,11 @@ function handleFileInputClick(event) {
         closeOverlay();
       });
       
-      // Read and preview clipboard image
-      const imagePreview = overlay.querySelector('#cnp-image-container');
+      document.execCommand('paste')
+      // Read and preview clipboard image (Legacy)
+      /*const imagePreview = overlay.querySelector('#cnp-image-container');
       let noImg = overlay.querySelector('#cnp-not-image');
+
       navigator.clipboard.read().then(clipboardItems => {
         clipboardItems.forEach(clipboardItem => 
           clipboardItem['types'].forEach(clipboardItemType => {
@@ -177,26 +264,27 @@ function handleFileInputClick(event) {
                 if (blob) {
                   const reader = new FileReader();
                   reader.onload = event => {
-                    const img = document.createElement('img');
-                    img.src = event.target.result;
-                    img.id = 'cnp-image-preview';
+                    previewImage(event, blob);
+                    navigatorClipboardStep = true;
+                    console.log(navigatorClipboardStep)
+                    // const img = imagePreview.querySelector('#cnp-image-preview');
+                    // img.src = event.target.result;
 
-                    imagePreview.style.cursor = 'pointer';
-                    imagePreview.appendChild(img);
-                    imagePreview.addEventListener('click', () => {
-                      // Convert blob into file object
-                      const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
-                      const fileList = new DataTransfer();
+                    // imagePreview.style.cursor = 'pointer';
+                    // imagePreview.addEventListener('click', () => {
+                    //   // Convert blob into file object
+                    //   const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
+                    //   const fileList = new DataTransfer();
                       
-                      // Include previously selected files for multi-file
-                      for (const file of originalInput.files)
-                        fileList.items.add(file);
-                      fileList.items.add(file);
-                      originalInput.files = fileList.files;
+                    //   // Include previously selected files for multi-file
+                    //   for (const file of originalInput.files)
+                    //     fileList.items.add(file);
+                    //   fileList.items.add(file);
+                    //   originalInput.files = fileList.files;
                       
-                      triggerChangeEvent(originalInput);
-                      closeOverlay();
-                    });
+                    //   triggerChangeEvent(originalInput);
+                    //   closeOverlay();
+                    // });
                   };
                   reader.readAsDataURL(blob);
                   // Remove noImage text since image is found
@@ -222,7 +310,8 @@ function handleFileInputClick(event) {
         if (!noImg)
           noImage(imagePreview);
         noImg = overlay.querySelector('#cnp-not-image');
-      });
+      });*/
+
     });
   } catch (error) {
     logging(error);
@@ -236,11 +325,11 @@ function logging(message) {
 
 // Close overlay immediate
 function closeOverlay() {
-  let overlay = document.querySelector('.overlay');
+  let overlay = document.querySelector('.cnp-overlay');
 
   while (overlay) {
     overlay.remove();
-    overlay = document.querySelector('.overlay');
+    overlay = document.querySelector('.cnp-overlay');
   }
 }
 
