@@ -96,7 +96,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     // Preview PDF type
     else if (blob.type.split('/').pop() == 'pdf') {
       spinner.style.display = 'block';
-      imagePreview = document.createElement('embed');
+      imagePreview = document.createElement('iframe');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
       imagePreview.src = readerEvent.target.result + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
