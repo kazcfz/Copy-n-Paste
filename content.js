@@ -73,18 +73,87 @@ function ctrlV(event) {
 }
 
 // Preview copied image in overlay
-function previewImage(event, blob) {
-  const imagePreview = document.querySelector('#cnp-image-container');
-  const img = imagePreview.querySelector('#cnp-image-preview');
-  img.src = event.target.result;
+function previewImage(webCopiedImgSrc, readerEvent, blob) {
+  let imagePreview = document.querySelector('#cnp-image-preview');
+  const imagePreviewContainer = document.querySelector('#cnp-preview-container');
+  const spinner = document.querySelector('.spinner');
 
-  imagePreview.style.cursor = 'pointer';
-  imagePreview.addEventListener('click', () => {
+  let fileName = blob.name;
+  if (fileName == 'image.png' || !blob.name)
+    fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
+
+  if (!imagePreview) {
+    // Preview image types
+    if (blob.type.split('/')[0] == 'image') {
+      spinner.style.display = 'block';
+      imagePreview = document.createElement('img');
+      imagePreview.id = 'cnp-image-preview';
+      imagePreview.src = readerEvent.target.result;
+      spinner.style.display = 'none';
+      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+    } 
+    // Preview PDF type
+    else if (blob.type.split('/').pop() == 'pdf') {
+      spinner.style.display = 'block';
+      imagePreview = document.createElement('embed');
+      imagePreview.id = 'cnp-image-preview';
+      imagePreview.type = blob.type;
+      imagePreview.src = readerEvent.target.result + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
+      spinner.style.display = 'none';
+      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+    } 
+    // Preview video types
+    else if (blob.type.split('/')[0] == 'video') {
+      spinner.style.display = 'block';
+      imagePreview = document.createElement('video');
+      imagePreview.id = 'cnp-image-preview';
+      imagePreview.preload = "metadata";
+      imagePreview.type = blob.type;
+      imagePreview.src = readerEvent.target.result;
+      imagePreview.onloadedmetadata = () => {
+        spinner.style.display = 'none';
+        if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
+          previewGenericFile('audio_file');
+        else
+          try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      }
+    }
+    // Preview audio type
+    else if (blob.type.split('/')[0] == 'audio')
+      previewGenericFile('audio_file');
+    // Preview generic file type
+    else
+      previewGenericFile('blank_file');
+  }
+
+  function previewGenericFile(fileTypeIcon) {
+    imagePreview = document.createElement('img');
+    imagePreview.id = 'cnp-image-preview';
+    imagePreview.setAttribute('height', '50%');
+    imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.png`);
+    try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+
+    let title = document.createElement('span');
+    const extension = fileName.split('.').pop();
+    let baseName = fileName.slice(0, -extension.length - 1);
+    if (fileName.length > 25)
+      baseName = baseName.slice(0, 25) + '..';
+    title.textContent = `${baseName}.${extension}`;
+    title.id = 'cnp-image-title';
+    imagePreviewContainer.appendChild(title);
+  }
+  
+  // Preview GIF images (copied from web)
+  // if (webCopiedImgSrc.endsWith('.gif')) {
+  //   img.src = webCopiedImgSrc;
+  // }
+  
+  // if (webCopiedImgSrc.endsWith('.gif'))
+  //   fileName = fileName.replace('.png', '.gif');
+
+  imagePreviewContainer.style.cursor = 'pointer';
+  imagePreviewContainer.addEventListener('click', () => {
     // Convert blob into file object
-    let fileName = blob.name;
-    if (blob.name == 'image.png' || !blob.name)
-      fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop()
-    
     const file = new File([blob], fileName, { type: blob.type });
     const fileList = new DataTransfer();
     
@@ -101,12 +170,17 @@ function previewImage(event, blob) {
 
 // Clones event objects
 function cloneEvent(e) {
-  if (e===undefined || e===null) return undefined;
-  function ClonedEvent() {};  
+  if (e===undefined || e===null)
+    return undefined;
+
+  function ClonedEvent() {};
   let clone=new ClonedEvent();
   for (let p in e) {
-      let d=Object.getOwnPropertyDescriptor(e, p);
-      if (d && (d.get || d.set)) Object.defineProperty(clone, p, d); else clone[p] = e[p];
+    let d=Object.getOwnPropertyDescriptor(e, p);
+    if (d && (d.get || d.set))
+      Object.defineProperty(clone, p, d);
+    else
+      clone[p] = e[p];
   }
   Object.setPrototypeOf(clone, e);
   return clone;
@@ -120,49 +194,6 @@ function handleFileInputClick(event) {
   // Create overlay
   const overlay = document.createElement('div');
   overlay.classList.add('cnp-overlay');
-
-  // Handle paste action
-  document.addEventListener('paste', event => {
-    const overlayContent = document.querySelector('.cnp-overlay-content');
-    if (overlayContent) {
-      /*const fileList = new DataTransfer();
-
-      // Reattach previous files
-      for (const file of originalInput.files)
-        fileList.items.add(file);
-
-      navigator.clipboard.read().then(clipboardItems => 
-        clipboardItems.forEach(clipboardItem => 
-          clipboardItem['types'].forEach(clipboardItemType =>
-            clipboardItemType.startsWith('image/') && clipboardItem.getType('image/png').then(blob => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  // Convert blob into file object
-                  const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
-                  fileList.items.add(file);
-                  originalInput.files = fileList.files;
-                  closeOverlay();
-                  triggerChangeEvent(originalInput);
-                };
-                reader.readAsDataURL(blob);
-            })
-          )
-        )
-      )*/
-
-      // the cooler clipboard api
-      const dataTransfer = event.clipboardData;
-      if (dataTransfer.files) {
-        // ctrlVdata = event.clipboardData;
-        ctrlVdata = cloneEvent(event.clipboardData);
-        Array.prototype.forEach.call(dataTransfer.files, file => {
-          const reader = new FileReader();
-          reader.onload = event => previewImage(event, file);
-          reader.readAsDataURL(file);
-        });
-      }
-    }
-  }, { once: true });
 
   // Handle Ctrl+V action
   document.addEventListener('keydown', ctrlV);
@@ -192,13 +223,7 @@ function handleFileInputClick(event) {
       overlayContent.style.top = overlayBottomPos + 'px';
 
       // Close overlay when clicked outside
-      document.addEventListener('click', event => {
-        let overlayContent = document.querySelector('.cnp-overlay-content');
-        while (overlayContent && !overlayContent.contains(event.target)) {
-          closeOverlay();
-          overlayContent = document.querySelector('.cnp-overlay-content');
-        }
-      });
+      document.onclick = () => closeOverlay();
 
       // Overlay upload click listener
       const uploadBtn = overlay.querySelector('#cnp-upload-btn');
@@ -224,25 +249,23 @@ function handleFileInputClick(event) {
         triggerChangeEvent(originalInput);
         closeOverlay();
       });
-      
-      /*if (originalInput.multiple)
-        overlayFileInput.multiple = true;
-      else
-        overlayFileInput.multiple = false;*/
 
-      // Handle drag and drop
+      // Handle dragover event
       const CNP_dropText = overlay.querySelector('#cnp-drop-text');
       overlay.addEventListener('dragover', event => {
+        event.stopPropagation();
         event.preventDefault();
         CNP_dropText.style.display = 'flex';
       });
 
+      // Handle dragleave event
       overlay.addEventListener('dragleave', event => {
         const isChild = overlay.contains(event.relatedTarget);
         if (!isChild)
           CNP_dropText.style.display = 'none';
       });
 
+      // Handle drop event
       overlay.addEventListener('drop', event => {
         event.preventDefault();
         CNP_dropText.style.display = 'none';
@@ -250,68 +273,30 @@ function handleFileInputClick(event) {
         handleDroppedFiles(files, originalInput);
         closeOverlay();
       });
+
+      // Handle paste event
+      document.addEventListener('paste', event => {
+        event.stopPropagation();
+        event.preventDefault();
+        
+        if (overlayFileInput) {
+          // Access clipboard to display latest copied images to overlay
+          const dataTransfer = event.clipboardData;
+          if (dataTransfer.files.length > 0) {
+            ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
+            Array.prototype.forEach.call(dataTransfer.files, file => {
+              const reader = new FileReader();
+              let webCopiedImgSrc = '';
+              try { webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1]; } catch {}
+              reader.onload = readerEvent => previewImage(webCopiedImgSrc, readerEvent, file);
+              reader.readAsDataURL(file);
+            });
+          } else
+            noImage();
+        }
+      }, { once: true, capture: true });
       
-      document.execCommand('paste')
-      // Read and preview clipboard image (Legacy)
-      /*const imagePreview = overlay.querySelector('#cnp-image-container');
-      let noImg = overlay.querySelector('#cnp-not-image');
-
-      navigator.clipboard.read().then(clipboardItems => {
-        clipboardItems.forEach(clipboardItem => 
-          clipboardItem['types'].forEach(clipboardItemType => {
-            if (clipboardItemType.startsWith('image/')) {
-              clipboardItem.getType('image/png').then(blob => {
-                if (blob) {
-                  const reader = new FileReader();
-                  reader.onload = event => {
-                    previewImage(event, blob);
-                    navigatorClipboardStep = true;
-                    console.log(navigatorClipboardStep)
-                    // const img = imagePreview.querySelector('#cnp-image-preview');
-                    // img.src = event.target.result;
-
-                    // imagePreview.style.cursor = 'pointer';
-                    // imagePreview.addEventListener('click', () => {
-                    //   // Convert blob into file object
-                    //   const file = new File([blob], 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.png', { type: blob.type });
-                    //   const fileList = new DataTransfer();
-                      
-                    //   // Include previously selected files for multi-file
-                    //   for (const file of originalInput.files)
-                    //     fileList.items.add(file);
-                    //   fileList.items.add(file);
-                    //   originalInput.files = fileList.files;
-                      
-                    //   triggerChangeEvent(originalInput);
-                    //   closeOverlay();
-                    // });
-                  };
-                  reader.readAsDataURL(blob);
-                  // Remove noImage text since image is found
-                  if (noImg)
-                    noImg.parentNode.removeChild(noImg);
-                } else {
-                  // Check if noImage text exists
-                  if (!noImg)
-                    noImage(imagePreview);
-                  noImg = overlay.querySelector('#cnp-not-image');
-                }
-              });
-            } else {
-              // Check if noImage text exists
-              if (!noImg)
-                noImage(imagePreview);
-              noImg = overlay.querySelector('#cnp-not-image');
-            }
-          })
-        );
-      }).catch(error => {
-        // Check if noImage text exists
-        if (!noImg)
-          noImage(imagePreview);
-        noImg = overlay.querySelector('#cnp-not-image');
-      });*/
-
+      document.execCommand('paste');
     });
   } catch (error) {
     logging(error);
@@ -334,13 +319,15 @@ function closeOverlay() {
 }
 
 // Preview 'No image' message
-function noImage(imagePreview) {
+function noImage() {
   const CNP_notImage = document.createElement('span');
   CNP_notImage.id = 'cnp-not-image';
   CNP_notImage.textContent = 'Screenshot / Drop an image';
 
-  imagePreview.style.cursor = 'default';
-  imagePreview.appendChild(CNP_notImage);
+  const overlay = document.querySelector('.cnp-overlay');
+  const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
+  imagePreviewContainer.style.cursor = 'default';
+  imagePreviewContainer.appendChild(CNP_notImage);
 }
 
 // Trigger change event on original input to update value (like disabled buttons)
