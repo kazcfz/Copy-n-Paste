@@ -89,8 +89,9 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.src = readerEvent.target.result;
-      spinner.style.display = 'none';
-      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      imagePreview.onload = () => {
+        try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      }
     } 
     // Preview PDF type
     else if (blob.type.split('/').pop() == 'pdf') {
@@ -99,7 +100,6 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
       imagePreview.src = readerEvent.target.result + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
-      spinner.style.display = 'none';
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
     } 
     // Preview video types
@@ -111,7 +111,6 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.type = blob.type;
       imagePreview.src = readerEvent.target.result;
       imagePreview.onloadedmetadata = () => {
-        spinner.style.display = 'none';
         if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
           previewGenericFile('audio_file');
         else
@@ -127,6 +126,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   }
 
   function previewGenericFile(fileTypeIcon) {
+    spinner.style.display = 'none';
     imagePreview = document.createElement('img');
     imagePreview.id = 'cnp-image-preview';
     imagePreview.setAttribute('height', '50%');
