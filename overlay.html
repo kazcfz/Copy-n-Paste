@@ -57,7 +57,7 @@
             margin-right: 7px;
         }
 
-        #cnp-image-container {
+        #cnp-preview-container {
             width: 240px;
             height: 135px;
             padding: 6px;
@@ -66,17 +66,25 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-direction: column;
         }
-        #cnp-image-container:hover {
+        #cnp-preview-container:hover {
             background-color: rgba(0, 0, 0, .05);
             filter: brightness(.95);
         }
 
         #cnp-image-preview {
+            position: relative;
             border-radius: .5rem;
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+            pointer-events: none;
+        }
+
+        #cnp-image-title {
+            pointer-events: none;
+            font-size: 14px;
         }
 
         #cnp-not-image{
@@ -108,6 +116,28 @@
             vertical-align: -.125em;
         }
 
+        .spinner {
+            display: none;
+            position: absolute;
+            border: 8px solid #e0e0e0;
+            border-radius: 50%;
+            border-top: 8px solid #00000000;
+            width: 60px;
+            height: 60px;
+            -webkit-animation: spin .85s linear infinite; /* Safari */
+            animation: spin .85s linear infinite;
+        }
+        
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @media (prefers-color-scheme: dark) {
             .cnp-overlay-content {
                 background-color: rgba(25, 25, 25, .85);
@@ -116,13 +146,18 @@
                 backdrop-filter: blur(50px);
             }
 
-            #cnp-image-container:hover {
+            #cnp-preview-container:hover {
                 background-color: rgba(255, 255, 255, .1);
                 filter: brightness(1);
             }
 
             .cnp-menu-item:hover {
                 background-color: rgba(255, 255, 255, .1);
+            }
+
+            .spinner {
+                border-color: #505050;
+                border-top-color: #00000000;
             }
         }
     </style>
@@ -136,7 +171,7 @@
         </span>
         
         <!-- Image Container & Preview -->
-        <div id="cnp-image-container"><img id="cnp-image-preview"></div>
+        <div id="cnp-preview-container"><div class="spinner"></div></div>
 
         <hr class="cnp-hr">
 
