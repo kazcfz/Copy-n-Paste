@@ -77,8 +77,13 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   let imagePreview = document.querySelector('#cnp-image-preview');
   const imagePreviewContainer = document.querySelector('#cnp-preview-container');
   const spinner = document.querySelector('.spinner');
+  const badge = document.querySelector('.cnp-preview-badge');
 
   let fileName = blob.name;
+
+  badge.title += fileName + '\n';
+  badge.innerText = parseInt(badge.innerText) + 1;
+
   if (fileName == 'image.png' || !blob.name)
     fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
 
@@ -88,10 +93,8 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.src = readerEvent.target.result;
-      imagePreview.onload = () => {
-        spinner.style.display = 'none';
-        try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
-      }
+      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      imagePreview.onload = () => spinner.style.display = 'none';
     } 
     // Preview PDF type
     else if (blob.type.split('/').pop() == 'pdf') {
@@ -281,25 +284,76 @@ function handleFileInputClick(event) {
       });
 
       // Handle paste event
-      document.addEventListener('paste', event => {
+      document.addEventListener('paste', async event => {
         event.stopPropagation();
         event.preventDefault();
         
+        const statusMap = new Map();
+        statusMap.set('success', 0);
+        statusMap.set('fail', 0);
         if (overlayFileInput) {
           // Access clipboard to display latest copied images to overlay
           const dataTransfer = event.clipboardData;
           if (dataTransfer.files.length > 0) {
             ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
-            Array.prototype.forEach.call(dataTransfer.files, file => {
+            
+            /*Array.prototype.forEach.call(dataTransfer.files, file => {
+              console.log('file', file)
+              console.log(parseInt(document.querySelector('.cnp-preview-badge').innerText))
               const reader = new FileReader();
               let webCopiedImgSrc = '';
               // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
-              reader.onload = readerEvent => previewImage(webCopiedImgSrc, readerEvent, file);
+              reader.onload = readerEvent => {
+                previewImage(webCopiedImgSrc, readerEvent, file);
+                statusMap.set('success', statusMap.get('success')+1);
+                // const noImg = overlay.querySelector('#cnp-not-image');
+                // if (noImg)
+                //   noImg.parentNode.removeChild(noImg);
+              };
+              reader.onerror = () => statusMap.set('fail', statusMap.get('fail')+1);
+                // if (parseInt(document.querySelector('.cnp-preview-badge').innerText) == 0)
+                //   noImage();
               reader.readAsDataURL(file);
-            });
+            });*/
+
+            // Function to handle the FileReader asynchronously
+            const readFileAsDataURL = file => {
+              return new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = readerEvent => {
+                    let webCopiedImgSrc = '';
+                    // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
+                    previewImage(webCopiedImgSrc, readerEvent, file);
+                    statusMap.set('success', statusMap.get('success') + 1);
+                    resolve();
+                  };
+                  reader.onerror = () => {
+                      statusMap.set('fail', statusMap.get('fail') + 1);
+                      resolve(); // Resolve on error as well
+                  };
+                  reader.readAsDataURL(file);
+              });
+            };
+
+            // Create an array of promises for each file and wait for all resolves
+            const readPromises = Array.from(dataTransfer.files).map(file => {return readFileAsDataURL(file);});
+            await Promise.all(readPromises);
+
+            if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
+              noImage();
           } else
             noImage();
         }
+
+        // console.log(statusMap.get('fail'), statusMap.get('success'))
+        // if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
+        //   console.log('ohno')
+
+
+        // console.log(parseInt(document.querySelector('.cnp-preview-badge').innerText))
+        // if (parseInt(document.querySelector('.cnp-preview-badge').innerText) == 0){
+        //   noImage();
+        // }
       }, { once: true, capture: true });
       
       document.execCommand('paste');
@@ -334,6 +388,12 @@ function noImage() {
   const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
   imagePreviewContainer.style.cursor = 'default';
   imagePreviewContainer.appendChild(CNP_notImage);
+
+  const spinner = document.querySelector('.spinner');
+  spinner.style.display = 'none';
+
+  const badge = document.querySelector('.cnp-preview-badge');
+  badge.style.display = 'none';
 }
 
 // Trigger change event on original input to update value (like disabled buttons)
