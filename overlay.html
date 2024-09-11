@@ -10,13 +10,13 @@
             font-size: medium;
             position: absolute;
             transform: translate(-50%, -50%);
-            background-color: rgba(255, 255, 255, .75);
+            background-color: rgba(240, 240, 240);
             backdrop-filter: blur(15px);
             /* border: .5px solid #dee2e6; */
             border: 0;
             border-radius: .5rem;
             box-shadow: 0px 10px 15px rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0);
-            overflow: hidden;
+            /* overflow: hidden; */
             text-align: center;
             color: #212529;
             -webkit-user-select: none;
@@ -58,6 +58,24 @@
             margin-right: 7px;
         }
 
+        .cnp-preview-badge {
+            display: inline-block;
+            line-height: 0.85;
+            position: absolute;
+            top: 4%;
+            left: 98%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(240, 240, 240);
+            box-shadow: 0px 10px 15px rgba(0, 0, 0, 0), 0 0 6px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(15px);
+            color: #212529;
+            font-size: 1.05em;
+            font-weight: 500;
+            padding: 0.5em 0.5em;
+            text-align: center;
+            border-radius: .5rem;
+        }
+
         #cnp-preview-container {
             width: 240px;
             height: 135px;
@@ -70,8 +88,8 @@
             flex-direction: column;
         }
         #cnp-preview-container:hover {
-            background-color: rgba(0, 0, 0, .05);
-            filter: brightness(.95);
+            background-color: rgba(0, 0, 0, .1);
+            filter: brightness(.9);
         }
 
         #cnp-image-preview {
@@ -111,7 +129,7 @@
             margin: 5px;
         }
         .cnp-menu-item:hover {
-            background-color: rgba(0, 0, 0, .05);
+            background-color: rgba(0, 0, 0, .1);
         }
         
         .cnp-bi {
@@ -144,7 +162,7 @@
             .cnp-overlay-content {
                 background-color: rgba(25, 25, 25, .85);
                 color: white;
-                border: .5px solid #636363;
+                /* border: .5px solid #636363; */
                 backdrop-filter: blur(50px);
             }
 
@@ -161,6 +179,12 @@
                 border-color: #505050;
                 border-top-color: #00000000;
             }
+
+            .cnp-preview-badge {
+                background-color: rgb(57 57 57);
+                backdrop-filter: blur(50px);
+                color: white;
+            }
         }
     </style>
 </head>
@@ -174,6 +198,7 @@
         
         <!-- Image Container & Preview -->
         <div id="cnp-preview-container"><div class="spinner"></div></div>
+        <span class="cnp-preview-badge">0</span>
 
         <hr class="cnp-hr">
 
