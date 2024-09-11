@@ -10,12 +10,11 @@
             font-size: medium;
             position: absolute;
             transform: translate(-50%, -50%);
-            background-color: rgba(255, 255, 255, .75);
+            background-color: rgba(240, 240, 240);
             backdrop-filter: blur(15px);
-            border: .5px solid #dee2e6;
+            border: 0;
             border-radius: .5rem;
-            box-shadow: 2px 6px 10px rgba(0,0,0,.05), 0 0 6px rgba(0,0,0,.05);
-            overflow: hidden;
+            box-shadow: 0px 10px 15px rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0);
             text-align: center;
             color: #212529;
             -webkit-user-select: none;
@@ -57,7 +56,25 @@
             margin-right: 7px;
         }
 
-        #cnp-image-container {
+        .cnp-preview-badge {
+            display: inline-block;
+            line-height: 0.85;
+            position: absolute;
+            top: 4%;
+            left: 98%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(240, 240, 240);
+            box-shadow: 0px 10px 15px rgba(0, 0, 0, 0), 0 0 6px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(15px);
+            color: #212529;
+            font-size: 1.05em;
+            font-weight: 500;
+            padding: 0.5em 0.5em;
+            text-align: center;
+            border-radius: .5rem;
+        }
+
+        #cnp-preview-container {
             width: 240px;
             height: 135px;
             padding: 6px;
@@ -66,17 +83,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-direction: column;
         }
-        #cnp-image-container:hover {
-            background-color: rgba(0, 0, 0, .05);
-            filter: brightness(.95);
+        #cnp-preview-container:hover {
+            background-color: rgba(0, 0, 0, .1);
+            filter: brightness(.9);
         }
 
         #cnp-image-preview {
+            position: relative;
             border-radius: .5rem;
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+            pointer-events: none;
+            border: 0;
+        }
+
+        #cnp-image-title {
+            pointer-events: none;
+            font-size: 14px;
         }
 
         #cnp-not-image{
@@ -101,28 +127,60 @@
             margin: 5px;
         }
         .cnp-menu-item:hover {
-            background-color: rgba(0, 0, 0, .05);
+            background-color: rgba(0, 0, 0, .1);
         }
         
         .cnp-bi {
             vertical-align: -.125em;
         }
 
+        .spinner {
+            display: block;
+            position: absolute;
+            border: 8px solid #e0e0e0;
+            border-radius: 50%;
+            border-top: 8px solid #00000000;
+            width: 60px;
+            height: 60px;
+            -webkit-animation: spin .85s linear infinite;
+            animation: spin .85s linear infinite;
+        }
+        
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @media (prefers-color-scheme: dark) {
             .cnp-overlay-content {
                 background-color: rgba(25, 25, 25, .85);
                 color: white;
-                border: .5px solid #636363;
                 backdrop-filter: blur(50px);
             }
 
-            #cnp-image-container:hover {
+            #cnp-preview-container:hover {
                 background-color: rgba(255, 255, 255, .1);
                 filter: brightness(1);
             }
 
             .cnp-menu-item:hover {
                 background-color: rgba(255, 255, 255, .1);
+            }
+
+            .spinner {
+                border-color: #505050;
+                border-top-color: #00000000;
+            }
+
+            .cnp-preview-badge {
+                background-color: rgb(57 57 57);
+                backdrop-filter: blur(50px);
+                color: white;
             }
         }
     </style>
@@ -136,7 +194,8 @@
         </span>
         
         <!-- Image Container & Preview -->
-        <div id="cnp-image-container"><img id="cnp-image-preview"></div>
+        <div id="cnp-preview-container"><div class="spinner"></div></div>
+        <span class="cnp-preview-badge">0</span>
 
         <hr class="cnp-hr">
 
