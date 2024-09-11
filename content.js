@@ -85,26 +85,27 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   if (!imagePreview) {
     // Preview image types
     if (blob.type.split('/')[0] == 'image') {
-      spinner.style.display = 'block';
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.src = readerEvent.target.result;
       imagePreview.onload = () => {
+        spinner.style.display = 'none';
         try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       }
     } 
     // Preview PDF type
     else if (blob.type.split('/').pop() == 'pdf') {
-      spinner.style.display = 'block';
+      spinner.style.display = 'none';
       imagePreview = document.createElement('iframe');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
       imagePreview.src = readerEvent.target.result + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      spinner.style.display = 'none';
     } 
     // Preview video types
     else if (blob.type.split('/')[0] == 'video') {
-      spinner.style.display = 'block';
+      spinner.style.display = 'none';
       imagePreview = document.createElement('video');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.preload = "metadata";
@@ -116,17 +117,17 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
         else
           try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       }
+      spinner.style.display = 'none';
     }
     // Preview audio type
     else if (blob.type.split('/')[0] == 'audio')
       previewGenericFile('audio_file');
-    // Preview generic file type
+    // Preview other file types
     else
       previewGenericFile('blank_file');
   }
 
   function previewGenericFile(fileTypeIcon) {
-    spinner.style.display = 'none';
     imagePreview = document.createElement('img');
     imagePreview.id = 'cnp-image-preview';
     imagePreview.setAttribute('height', '50%');
@@ -141,6 +142,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     title.textContent = `${baseName}.${extension}`;
     title.id = 'cnp-image-title';
     imagePreviewContainer.appendChild(title);
+    spinner.style.display = 'none';
   }
   
   // Preview GIF images (copied from web)
@@ -223,13 +225,17 @@ function handleFileInputClick(event) {
       overlayContent.style.top = overlayBottomPos + 'px';
 
       // Close overlay when clicked outside
-      document.onclick = () => closeOverlay();
+      document.onclick = event => {
+        let overlayContent = document.querySelector('.cnp-overlay-content');
+        while (overlayContent && !overlayContent.contains(event.target)) {
+          closeOverlay();
+          overlayContent = document.querySelector('.cnp-overlay-content');
+        }
+      };
 
       // Overlay upload click listener
       const uploadBtn = overlay.querySelector('#cnp-upload-btn');
-      uploadBtn.addEventListener('click', () => {
-        overlayFileInput.click();
-      });
+      uploadBtn.onclick = () => overlayFileInput.click();
 
       // Overlay handle file input
       const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
@@ -287,7 +293,7 @@ function handleFileInputClick(event) {
             Array.prototype.forEach.call(dataTransfer.files, file => {
               const reader = new FileReader();
               let webCopiedImgSrc = '';
-              try { webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1]; } catch {}
+              // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
               reader.onload = readerEvent => previewImage(webCopiedImgSrc, readerEvent, file);
               reader.readAsDataURL(file);
             });
