@@ -3,7 +3,7 @@ if(document.readyState === 'loading')
 else
   afterDOMLoaded();
 
-// Global variables 
+// Global variables
 let clientX = 0;
 let clientY = 0;
 
@@ -296,25 +296,6 @@ function handleFileInputClick(event) {
           const dataTransfer = event.clipboardData;
           if (dataTransfer.files.length > 0) {
             ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
-            
-            /*Array.prototype.forEach.call(dataTransfer.files, file => {
-              console.log('file', file)
-              console.log(parseInt(document.querySelector('.cnp-preview-badge').innerText))
-              const reader = new FileReader();
-              let webCopiedImgSrc = '';
-              // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
-              reader.onload = readerEvent => {
-                previewImage(webCopiedImgSrc, readerEvent, file);
-                statusMap.set('success', statusMap.get('success')+1);
-                // const noImg = overlay.querySelector('#cnp-not-image');
-                // if (noImg)
-                //   noImg.parentNode.removeChild(noImg);
-              };
-              reader.onerror = () => statusMap.set('fail', statusMap.get('fail')+1);
-                // if (parseInt(document.querySelector('.cnp-preview-badge').innerText) == 0)
-                //   noImage();
-              reader.readAsDataURL(file);
-            });*/
 
             // Function to handle the FileReader asynchronously
             const readFileAsDataURL = file => {
@@ -344,16 +325,6 @@ function handleFileInputClick(event) {
           } else
             noImage();
         }
-
-        // console.log(statusMap.get('fail'), statusMap.get('success'))
-        // if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
-        //   console.log('ohno')
-
-
-        // console.log(parseInt(document.querySelector('.cnp-preview-badge').innerText))
-        // if (parseInt(document.querySelector('.cnp-preview-badge').innerText) == 0){
-        //   noImage();
-        // }
       }, { once: true, capture: true });
       
       document.execCommand('paste');
