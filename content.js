@@ -15,62 +15,48 @@ function afterDOMLoaded() {
       event.target.addEventListener("click", handleFileInputClick);
   }, true);
 
+  // Message listener between window.top and iframes
   window.addEventListener('message', event => {
-    console.log(event.data)
+    // Execute paste events from top level since iframes can't
+    if (event.data.Type == 'paste') {
+      try {
+        document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
+      } catch (error) {
+        logging(error);
+        try {noImage();} catch (error) {logging(error);}
+      }
+    }
   });
 
-  /*document.addEventListener('overlayHTML', event => {
-    overlayHTML = event.detail;
-    console.log('received this: ', overlayHTML);
-  })*/
-
-  document.querySelectorAll('iframe').forEach(iframe => {
-    window.top.postMessage('watStart', '*');
-    // if (iframe.contentWindow.document) {
-    //   const script = document.createElement('script');
-    //   script.src = chrome.runtime.getURL('content.js');
-    //   iframe.contentWindow.document.head.appendChild(script);
-    //   // console.log(iframe.contentWindow.document.head)
-    // }
-
+  // Inject script into (raw) iframes
+  document.querySelectorAll('iframe').forEach((iframe, index) => {
     if (iframe.contentDocument) {
       const script = iframe.contentDocument.createElement('script');
+      iframe.classList.add(`CnP-iframe-${index}`);
+      script.id = `CnP-iframe-${index}`;
       script.src = chrome.runtime.getURL('content.js');
-      // script.dataset.overlayHTML = chrome.runtime.getURL('overlay.html');
       script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
       iframe.contentDocument.head.appendChild(script);
-
-      /*script.onload = () => {
-        const overlayHTML = chrome.runtime.getURL('overlay.html');
-        const evt = new CustomEvent('overlayHTML', {bubbles: true , cancelable: true, detail: overlayHTML});
-        document.dispatchEvent(evt);
-      }*/
-
-      /*iframe.contentDocument.addEventListener("click", event => {
-        window.top.postMessage('watClick', '*');
-        console.log(event.target.id)
-        if (event.target.id != "cnp-overlay-file-input" && event.target.tagName.toLowerCase() === "input" && event.target.type === "file")
-          event.target.addEventListener("click", handleFileInputClick);
-
-        // Close overlay when clicked outside
-        else {
-          let overlayContent = document.querySelector('.cnp-overlay-content');
-          while (overlayContent && !overlayContent.contains(event.target)) {
-            closeOverlay();
-            overlayContent = document.querySelector('.cnp-overlay-content');
-          }
-        };
-      }, true)*/
     }
   })
 
-  // Find and prep customized input file elements
+  // Find and prep customized input file elements, iframes
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
-      mutation.addedNodes.forEach(node => {
+      mutation.addedNodes.forEach((node, index) => {
         // Checks if node is an input file element
         if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
           node.addEventListener("click", handleFileInputClick);
+        // Checks if node is an iframe
+        else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
+          if (node.contentDocument) {
+            const script = node.contentDocument.createElement('script');
+            node.classList.add(`CnP-mutatedIframe-${index}`);
+            script.id = `CnP-mutatedIframe-${index}`;
+            script.src = chrome.runtime.getURL('content.js');
+            script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+            node.contentDocument.head.appendChild(script);
+          }
         // Checks if sub-nodes/child are input file elements
         else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
           const fileInputs = node.querySelectorAll("input[type='file']");
@@ -96,7 +82,7 @@ let ctrlVdata = null;
 function ctrlV(event) {
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
-    if (ctrlVdata.files) {
+    if (ctrlVdata && ctrlVdata.files) {
       Array.prototype.forEach.call(ctrlVdata.files, blob => {
         const reader = new FileReader();
         let fileName = blob.name;
@@ -380,7 +366,12 @@ function handleFileInputClick(event) {
           }
         }, { once: true, capture: true });
         
+        // Trigger paste event
         document.execCommand('paste');
+
+        // Trigger paste event for iframe
+        if (document.head.querySelector('script[id]'))
+          window.top.postMessage({'Type': 'paste', 'iframe': document.head.querySelector('script[id]').getAttribute('id')}, '*');
       });
     }
   } catch (error) { logging(error); }
