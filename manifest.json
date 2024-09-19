@@ -20,7 +20,7 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["overlay.html", "media/*"],
+        "resources": ["overlay.html", "content.js", "media/*"],
         "matches": ["<all_urls>"]
       }
     ]
