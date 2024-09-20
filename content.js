@@ -112,7 +112,7 @@ function ctrlV(event) {
 function previewImage(webCopiedImgSrc, readerEvent, blob) {
   let imagePreview = document.querySelector('#cnp-image-preview');
   const imagePreviewContainer = document.querySelector('#cnp-preview-container');
-  const spinner = document.querySelector('.spinner');
+  const spinner = document.querySelector('.cnp-spinner');
   const badge = document.querySelector('.cnp-preview-badge');
 
   let fileName = blob.name;
@@ -404,7 +404,7 @@ function noImage() {
   imagePreviewContainer.style.cursor = 'default';
   imagePreviewContainer.appendChild(CNP_notImage);
 
-  const spinner = document.querySelector('.spinner');
+  const spinner = document.querySelector('.cnp-spinner');
   spinner.style.display = 'none';
 
   const badge = document.querySelector('.cnp-preview-badge');
