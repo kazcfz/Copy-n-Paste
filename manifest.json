@@ -13,14 +13,13 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "exclude_matches": ["*://steamcommunity.com/id/*", "*://web.whatsapp.com/*"],
         "all_frames": true,
         "js": ["content.js"]
       }
     ],
     "web_accessible_resources": [
       {
-        "resources": ["overlay.html", "media/*"],
+        "resources": ["overlay.html", "content.js", "media/*"],
         "matches": ["<all_urls>"]
       }
     ]
