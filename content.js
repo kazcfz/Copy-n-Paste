@@ -343,7 +343,7 @@ function handleFileInputClick(event) {
                     reader.onload = readerEvent => {
                       let webCopiedImgSrc = '';
                       // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
-                      previewImage(webCopiedImgSrc, readerEvent, file);
+                      try {previewImage(webCopiedImgSrc, readerEvent, file);} catch (error) {logging(error);}
                       statusMap.set('success', statusMap.get('success') + 1);
                       resolve();
                     };
@@ -386,7 +386,6 @@ function logging(message) {
 // Close overlay immediate
 function closeOverlay() {
   let overlay = document.querySelector('.cnp-overlay');
-
   while (overlay) {
     overlay.remove();
     overlay = document.querySelector('.cnp-overlay');
