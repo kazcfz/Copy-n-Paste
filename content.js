@@ -128,7 +128,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     if (blob.type.split('/')[0] == 'image') {
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
-      imagePreview.src = readerEvent.target.result;
+      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type}));
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       imagePreview.onload = () => spinner.style.display = 'none';
     } 
@@ -138,7 +138,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview = document.createElement('iframe');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
-      imagePreview.src = readerEvent.target.result + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
+      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       spinner.style.display = 'none';
     } 
@@ -149,7 +149,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.id = 'cnp-image-preview';
       imagePreview.preload = "metadata";
       imagePreview.type = blob.type;
-      imagePreview.src = readerEvent.target.result;
+      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type}));
       imagePreview.onloadedmetadata = () => {
         if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
           previewGenericFile('audio_file');
@@ -348,10 +348,11 @@ function handleFileInputClick(event) {
                       resolve();
                     };
                     reader.onerror = () => {
-                        statusMap.set('fail', statusMap.get('fail') + 1);
-                        resolve(); // Resolve on error as well
+                      statusMap.set('fail', statusMap.get('fail') + 1);
+                      resolve(); // Resolve on error as well
                     };
-                    reader.readAsDataURL(file);
+                    // reader.readAsDataURL(file);
+                    reader.readAsArrayBuffer(file);
                 });
               };
 
