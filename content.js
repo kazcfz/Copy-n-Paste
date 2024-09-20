@@ -416,8 +416,8 @@ function noImage() {
 
 // Trigger change event on original input to update value (like disabled buttons)
 function triggerChangeEvent(originalInput) {
-  const changeEvent = new Event('change', { bubbles: true });
-  originalInput.dispatchEvent(changeEvent);
+  originalInput.dispatchEvent(new Event('change', { bubbles: true }));
+  originalInput.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // Put dropped file into original input element
