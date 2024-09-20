@@ -191,22 +191,6 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   
   // if (webCopiedImgSrc.endsWith('.gif'))
   //   fileName = fileName.replace('.png', '.gif');
-
-  imagePreviewContainer.style.cursor = 'pointer';
-  imagePreviewContainer.addEventListener('click', () => {
-    // Convert blob into file object
-    const file = new File([blob], fileName, { type: blob.type });
-    const fileList = new DataTransfer();
-    
-    // Include previously selected files for multi-file
-    for (const file of originalInput.files)
-      fileList.items.add(file);
-    fileList.items.add(file);
-    originalInput.files = fileList.files;
-    
-    triggerChangeEvent(originalInput);
-    closeOverlay();
-  }, {once: true});
 }
 
 // Clones event objects
@@ -298,6 +282,9 @@ function handleFileInputClick(event) {
           closeOverlay();
         });
 
+        // Follow multiple file rules of original input
+        // overlayFileInput.multiple = originalInput.multiple;
+
         // Handle dragover event
         const CNP_dropText = overlay.querySelector('#cnp-drop-text');
         overlay.addEventListener('dragover', event => {
@@ -331,7 +318,7 @@ function handleFileInputClick(event) {
           statusMap.set('success', 0);
           statusMap.set('fail', 0);
           if (overlayFileInput) {
-            // Access clipboard to display latest copied images to overlay
+            // Access clipboard to display latest copied files to overlay
             const dataTransfer = event.clipboardData;
             if (dataTransfer.files.length > 0) {
               ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
@@ -339,29 +326,45 @@ function handleFileInputClick(event) {
               // Function to handle the FileReader asynchronously
               const readFileAsDataURL = file => {
                 return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = readerEvent => {
-                      let webCopiedImgSrc = '';
-                      // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
-                      try {previewImage(webCopiedImgSrc, readerEvent, file);} catch (error) {logging(error);}
-                      statusMap.set('success', statusMap.get('success') + 1);
-                      resolve();
-                    };
-                    reader.onerror = () => {
-                      statusMap.set('fail', statusMap.get('fail') + 1);
-                      resolve(); // Resolve on error as well
-                    };
-                    // reader.readAsDataURL(file);
-                    reader.readAsArrayBuffer(file);
+                  const reader = new FileReader();
+                  reader.onload = readerEvent => {
+                    let webCopiedImgSrc = '';
+                    // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
+                    try {previewImage(webCopiedImgSrc, readerEvent, file);} catch (error) {logging(error);}
+                    statusMap.set('success', statusMap.get('success') + 1);
+                    resolve();
+                  };
+                  reader.onerror = () => {
+                    statusMap.set('fail', statusMap.get('fail') + 1);
+                    resolve();
+                  };
+                  reader.readAsArrayBuffer(file);
                 });
               };
+              
+              // Include previously selected files for multi-file (continues in imagePreviewContainer click listener below)
+              const fileList = new DataTransfer();
+              for (const file of originalInput.files)
+                fileList.items.add(file);
 
-              // Create an array of promises for each file and wait for all resolves
-              const readPromises = Array.from(dataTransfer.files).map(file => {return readFileAsDataURL(file);});
+              // Array of promises to process each file
+              const readPromises = Array.from(dataTransfer.files).map(file => {
+                fileList.items.add(new File([file], file.name, { type: file.type }));
+                return readFileAsDataURL(file);
+              });
               await Promise.all(readPromises);
 
               if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
                 noImage();
+              else {
+                const imagePreviewContainer = document.querySelector('#cnp-preview-container');
+                imagePreviewContainer.style.cursor = 'pointer';
+                imagePreviewContainer.addEventListener('click', () => {
+                  originalInput.files = fileList.files;
+                  triggerChangeEvent(originalInput);
+                  closeOverlay();
+                }, {once: true});
+              }
             } else
               noImage();
           }
@@ -371,7 +374,7 @@ function handleFileInputClick(event) {
         document.execCommand('paste');
 
         // Trigger paste event for iframe
-        if (document.head.querySelector('script[id]'))
+        if (document.head.querySelector('script[id]') && (document.head.querySelector('script[id]').getAttribute('id').includes('CnP-iframe-') || document.head.querySelector('script[id]').getAttribute('id').includes('CnP-mutatedIframe-')))
           window.top.postMessage({'Type': 'paste', 'iframe': document.head.querySelector('script[id]').getAttribute('id')}, '*');
       });
     }
