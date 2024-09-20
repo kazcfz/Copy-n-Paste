@@ -13,7 +13,6 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "exclude_matches": ["*://steamcommunity.com/id/*"],
         "all_frames": true,
         "js": ["content.js"]
       }
