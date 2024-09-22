@@ -176,12 +176,14 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     let title = document.createElement('span');
     const extension = fileName.split('.').pop();
     let baseName = fileName.slice(0, -extension.length - 1);
-    if (fileName.length > 25)
+    if (fileName.length > 25) {
       baseName = baseName.slice(0, 25);
-    // Remove last character if it's a whitespace
-    while (baseName[baseName.length - 1] === ' ')
-      baseName = baseName.slice(0, -1);
-    baseName += '..';
+      // Remove last character if it's a whitespace
+      while (baseName[baseName.length - 1] === ' ')
+        baseName = baseName.slice(0, -1);
+      baseName += '..';
+    }
+    
     title.textContent = `${baseName}.${extension}`;
     title.id = 'cnp-image-title';
     imagePreviewContainer.appendChild(title);
