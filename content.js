@@ -120,9 +120,6 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   badge.title += fileName + '\n';
   badge.innerText = parseInt(badge.innerText) + 1;
 
-  if (fileName == 'image.png' || !blob.name)
-    fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
-
   if (!imagePreview) {
     // Preview image types
     if (blob.type.split('/')[0] == 'image') {
@@ -355,7 +352,10 @@ function handleFileInputClick(event) {
 
               // Array of promises to process each file
               const readPromises = Array.from(dataTransfer.files).map(file => {
-                fileList.items.add(new File([file], file.name, { type: file.type }));
+                let filename = file.name;
+                if (!filename || filename == 'image.png')
+                  filename = 'CnP_'+new Date().toLocaleString('en-US', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
+                fileList.items.add(new File([file], filename, { type: file.type }));
                 return readFileAsDataURL(file);
               });
               await Promise.all(readPromises);
