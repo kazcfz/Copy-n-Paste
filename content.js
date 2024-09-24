@@ -354,7 +354,7 @@ function handleFileInputClick(event) {
               const readPromises = Array.from(dataTransfer.files).map(file => {
                 let filename = file.name;
                 if (!filename || filename == 'image.png')
-                  filename = 'CnP_'+new Date().toLocaleString('en-US', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
+                  filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
                 fileList.items.add(new File([file], filename, { type: file.type }));
                 return readFileAsDataURL(file);
               });
