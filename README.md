@@ -2,11 +2,17 @@
 <p align="center"><a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a></p>
 <br><br><br><br>
 
-Copy-n-Paste is a lightweight Chromium extension designed to simplify the process of uploading images from your clipboard directly to webpages, eliminating the prior need to save them as files.
+Copy-n-Paste is a lightweight Chromium extension to simplify uploading images and files from your clipboard directly to webpages, eliminating the prior need to save them as files. This feature is well-known in Opera as Easy Files.
 <p align="center"><img src="https://i.imgur.com/TXV2SuL.png" alt="Screenshot Preview" width="49%" height="49%"> <img src="https://i.imgur.com/jqB4WFe.png" alt="Screenshot Preview" width="49%" height="49%"></p>
 <br><br>
 
-## Features
+## ❓ How to use
+1. Copy images/files OR take a screenshot
+2. Click on the website's attach/upload file button (or similar)
+3. Extension overlay pops up to preview and attach from clipboard
+<br><br>
+
+## 🚀 Features
 - **Lightweight** – Less than 0.02MB!
 - **Clean & Simple GUI** – 1 interface only!
 - **Screenshot upload** – Simply snap and upload!
@@ -34,12 +40,6 @@ _Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
 3. Enable 'Developer mode'
 4. Select 'Load unpacked'
 5. Select the extracted extension folder
-<br><br>
-
-## Usage
-1. Take a screenshot, or copy an image online
-2. Select the file input element in a webpage
-3. Select the previewed screenshot, or '+ Upload Image' to choose from storage, or drag a file over
 <br><br>
 
 ## Bugs and Feature requests
