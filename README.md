@@ -1,5 +1,8 @@
 <p align="center"><img src="https://i.imgur.com/M9eJymK.png" alt="Paste Image Uploader" width="75%" height="75%"></p>
-<p align="center"><a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium"></a></p>
+<p align="center">
+    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8khYWPJUsQceQkhXSlv1/iNEddTyWiMfLSwFD6qGq.png" alt="Get Copy-n-Paste for Chromium" height="100px"></a>
+    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get Copy-n-Paste for Firefox" height="100px"></a>
+</p>
 <br><br><br><br>
 
 Copy-n-Paste is a lightweight Chromium extension to simplify uploading images and files from your clipboard directly to webpages, eliminating the prior need to save them as files. This feature is well-known in Opera as Easy Files.
