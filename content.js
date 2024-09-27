@@ -377,7 +377,10 @@ function handleFileInputClick(event) {
         }, { once: true, capture: true });
         
         // Trigger paste event
+        overlay.contentEditable = true;
+        overlay.focus();
         document.execCommand('paste');
+        overlay.contentEditable = false;
 
         // Trigger paste event for iframe
         if (document.head.querySelector('script[id]') && (document.head.querySelector('script[id]').getAttribute('id').includes('CnP-iframe-') || document.head.querySelector('script[id]').getAttribute('id').includes('CnP-mutatedIframe-')))
