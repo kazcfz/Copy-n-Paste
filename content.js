@@ -28,17 +28,28 @@ function afterDOMLoaded() {
     }
   });
 
-  // Inject script into (raw) iframes
-  document.querySelectorAll('iframe').forEach((iframe, index) => {
-    if (iframe.contentDocument) {
-      const script = iframe.contentDocument.createElement('script');
-      iframe.classList.add(`CnP-iframe-${index}`);
-      script.id = `CnP-iframe-${index}`;
-      script.src = chrome.runtime.getURL('content.js');
-      script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
-      iframe.contentDocument.head.appendChild(script);
+  // Check through entire DOM
+  document.querySelectorAll('*').forEach((element, index) => {
+    // Inject script into (raw) iframes
+    if (element.tagName.toLowerCase() === 'iframe') {
+      if (element.contentDocument) {
+        const script = element.contentDocument.createElement('script');
+        element.classList.add(`CnP-iframe-${index}`);
+        script.id = `CnP-iframe-${index}`;
+        script.src = chrome.runtime.getURL('content.js');
+        script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+        element.contentDocument.head.appendChild(script);
+      }
     }
-  })
+  
+    // Check for shadow roots
+    if (element.shadowRoot) {
+      element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => {
+        if (fileInput.id !== "cnp-overlay-file-input")
+          fileInput.addEventListener("click", handleFileInputClick);
+      });
+    }
+  });
 
   // Find and prep customized input file elements, iframes
   const observer = new MutationObserver(mutations => {
@@ -47,6 +58,14 @@ function afterDOMLoaded() {
         // Checks if node is an input file element
         if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
           node.addEventListener("click", handleFileInputClick);
+        // Checks if node is a shadow root
+        else if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) {
+          const fileInputs = node.shadowRoot.querySelectorAll("input[type='file']");
+          fileInputs.forEach(fileInput => {
+            if (fileInput.id != "cnp-overlay-file-input")
+              fileInput.addEventListener("click", handleFileInputClick);
+          });
+        }
         // Checks if node is an iframe
         else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
           if (node.contentDocument) {
@@ -59,10 +78,20 @@ function afterDOMLoaded() {
           }
         // Checks if sub-nodes/child are input file elements
         else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
-          const fileInputs = node.querySelectorAll("input[type='file']");
-          fileInputs.forEach(fileInput => {
+          node.querySelectorAll("input[type='file']").forEach(fileInput => {
             if (fileInput.id != "cnp-overlay-file-input")
               fileInput.addEventListener("click", handleFileInputClick);
+          });
+        }
+        // If the added node is a document fragment, it may contain shadow hosts
+        else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+          node.childNodes.forEach(childNode => {
+            if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot) {
+              childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => {
+                if (fileInput.id != "cnp-overlay-file-input")
+                  fileInput.addEventListener("click", handleFileInputClick);
+              });
+            }
           });
         }
       });
