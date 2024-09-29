@@ -4,15 +4,18 @@ else
   afterDOMLoaded();
 
 // Global variables
-let clientX = 0;
-let clientY = 0;
-let overlayHTML;
+var clientX = 0;
+var clientY = 0;
+var overlayHTML;
+var lastURL = location.href;
 
 function afterDOMLoaded() {
   // Prep all input file elements
   document.addEventListener("click", event => {
-    if (event.target.id != "cnp-overlay-file-input" && event.target.tagName.toLowerCase() === "input" && event.target.type === "file")
+    if (!event.target.id.startsWith("cnp-") && event.target.tagName.toLowerCase() === "input" && event.target.type === "file") {
+      closeOverlay();
       event.target.addEventListener("click", handleFileInputClick);
+    }
   }, true);
 
   // Message listener between window.top and iframes
@@ -53,6 +56,13 @@ function afterDOMLoaded() {
 
   // Find and prep customized input file elements, iframes
   const observer = new MutationObserver(mutations => {
+    // 'Reload' extension when navigated to other pages within the website
+    const url = location.href;
+    if (url !== lastURL) {
+      lastURL = url;
+      afterDOMLoaded();
+    }
+
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach((node, index) => {
         // Checks if node is an input file element
@@ -107,7 +117,7 @@ function afterDOMLoaded() {
 }
 
 // Ctrl + V listener
-let ctrlVdata = null;
+var ctrlVdata = null;
 function ctrlV(event) {
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
