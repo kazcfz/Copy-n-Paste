@@ -6,7 +6,7 @@ else
 // Global variables
 var clientX = 0;
 var clientY = 0;
-var overlayHTML;
+var contentJS;
 var lastURL = location.href;
 
 function afterDOMLoaded() {
@@ -28,7 +28,8 @@ function afterDOMLoaded() {
         logging(error);
         try {noImage();} catch (error) {logging(error);}
       }
-    }
+    } else if (event.data.Type == 'getURL')
+      document.getElementsByClassName(event.data.iframe)[0].contentWindow.postMessage(chrome.runtime.getURL(event.data.Path));
   });
 
   // Check through entire DOM
@@ -82,8 +83,12 @@ function afterDOMLoaded() {
             const script = node.contentDocument.createElement('script');
             node.classList.add(`CnP-mutatedIframe-${index}`);
             script.id = `CnP-mutatedIframe-${index}`;
-            script.src = chrome.runtime.getURL('content.js');
-            script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+            const contentJS = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('src') : null;
+            script.src = contentJS || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('content.js') : null);
+            // script.src = chrome.runtime.getURL('content.js');
+            const overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
+            script.setAttribute('overlayhtml', overlayHTML || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('overlay.html') : null));
+            // script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
             node.contentDocument.head.appendChild(script);
           }
         // Checks if sub-nodes/child are input file elements
@@ -164,9 +169,20 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     if (blob.type.split('/')[0] == 'image') {
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
-      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type}));
+      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
-      imagePreview.onload = () => spinner.style.display = 'none';
+      imagePreview.onload = () => {
+        // Enlarge preview of smaller images
+        if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
+          imagePreview.style.width = "100%";
+          imagePreview.style.height = "auto";
+        } else if (imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
+          imagePreview.style.width = "auto";
+          imagePreview.style.height = "100%";
+        }
+
+        spinner.style.display = 'none';
+      }
     } 
     // Preview PDF type
     else if (blob.type.split('/').pop() == 'pdf') {
@@ -174,7 +190,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview = document.createElement('iframe');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
-      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
+      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       spinner.style.display = 'none';
     } 
@@ -185,7 +201,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.id = 'cnp-image-preview';
       imagePreview.preload = "metadata";
       imagePreview.type = blob.type;
-      imagePreview.src = window.URL.createObjectURL(new Blob([new Uint8Array(readerEvent.target.result)], {type: blob.type}));
+      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
       imagePreview.onloadedmetadata = () => {
         if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
           previewGenericFile('audio_file');
@@ -205,8 +221,17 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   function previewGenericFile(fileTypeIcon) {
     imagePreview = document.createElement('img');
     imagePreview.id = 'cnp-image-preview';
-    imagePreview.setAttribute('height', '50%');
-    imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.png`);
+    imagePreview.style.height = '50%';
+    try {
+      imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.png`);
+    } catch {
+      try {
+        window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script[id]').getAttribute('id'), 'Path': `media/${fileTypeIcon}.png`}, '*');
+        window.onmessage = event => imagePreview.src = event.data;
+      } catch (error) {
+        logging(error);
+      }
+    }
     try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
 
     let title = document.createElement('span');
@@ -266,7 +291,7 @@ function handleFileInputClick(event) {
   document.addEventListener('keydown', ctrlV);
 
   try {
-    overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
+    const overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
     const urlToFetch = overlayHTML || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('overlay.html') : null);
     if (urlToFetch) {
       fetch(urlToFetch)
