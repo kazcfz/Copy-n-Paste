@@ -131,7 +131,7 @@ function ctrlV(event) {
         const reader = new FileReader();
         let fileName = blob.name;
         if (blob.name == 'image.png' || !blob.name)
-          fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop()
+          fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
         reader.onload = () => {
           // Convert blob into file object
           const file = new File([blob], fileName, { type: blob.type });
