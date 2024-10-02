@@ -112,7 +112,7 @@ function afterDOMLoaded() {
       });
     });
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  try {observer.observe(document.body, { childList: true, subtree: true })} catch (error) {logging(error)}
 
   // Record last know coord. Some pages report coords as 0,0
   document.addEventListener('mousemove', event => {
