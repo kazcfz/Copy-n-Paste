@@ -174,12 +174,12 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       imagePreview.onload = () => {
         // Enlarge preview of smaller images
-        if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
-          imagePreview.style.width = "100%";
-          imagePreview.style.height = "auto";
-        } else if (imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
+        if ((imagePreview.naturalWidth < 240 && imagePreview.naturalHeight < 135) || imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
           imagePreview.style.width = "auto";
           imagePreview.style.height = "100%";
+        } else if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
+          imagePreview.style.width = "100%";
+          imagePreview.style.height = "auto";
         }
 
         spinner.style.display = 'none';
