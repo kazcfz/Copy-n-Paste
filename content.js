@@ -126,6 +126,7 @@ var ctrlVdata = null;
 function ctrlV(event) {
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
+    event.preventDefault();
     if (ctrlVdata && ctrlVdata.files) {
       Array.prototype.forEach.call(ctrlVdata.files, blob => {
         const reader = new FileReader();
