@@ -297,6 +297,10 @@ function handleFileInputClick(event) {
       fetch(urlToFetch)
       .then(response => response.text())
       .then(html => {
+        // Abort duplicate overlay setup if it exists in DOM
+        if (document.querySelector('.cnp-overlay'))
+          return;
+
         overlay.innerHTML = html;
         document.body.appendChild(overlay);
 
