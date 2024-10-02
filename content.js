@@ -147,7 +147,7 @@ function ctrlV(event) {
           triggerChangeEvent(originalInput);
           closeOverlay();
         };
-        reader.readAsDataURL(blob);
+        reader.readAsArrayBuffer(blob);
       });
     }
   }
@@ -224,7 +224,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     imagePreview.id = 'cnp-image-preview';
     imagePreview.style.height = '50%';
     try {
-          imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.webp`);
+      imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.webp`);
     } catch {
       try {
         window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script[id]').getAttribute('id'), 'Path': `media/${fileTypeIcon}.webp`}, '*');
