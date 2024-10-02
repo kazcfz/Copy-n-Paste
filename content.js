@@ -126,12 +126,13 @@ var ctrlVdata = null;
 function ctrlV(event) {
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
+    event.preventDefault();
     if (ctrlVdata && ctrlVdata.files) {
       Array.prototype.forEach.call(ctrlVdata.files, blob => {
         const reader = new FileReader();
         let fileName = blob.name;
         if (blob.name == 'image.png' || !blob.name)
-          fileName = 'CnP_'+new Date().toLocaleString().replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop()
+          fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
         reader.onload = () => {
           // Convert blob into file object
           const file = new File([blob], fileName, { type: blob.type });
@@ -173,12 +174,12 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       imagePreview.onload = () => {
         // Enlarge preview of smaller images
-        if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
-          imagePreview.style.width = "100%";
-          imagePreview.style.height = "auto";
-        } else if (imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
+        if ((imagePreview.naturalWidth < 240 && imagePreview.naturalHeight < 135) || imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
           imagePreview.style.width = "auto";
           imagePreview.style.height = "100%";
+        } else if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
+          imagePreview.style.width = "100%";
+          imagePreview.style.height = "auto";
         }
 
         spinner.style.display = 'none';
@@ -297,6 +298,10 @@ function handleFileInputClick(event) {
       fetch(urlToFetch)
       .then(response => response.text())
       .then(html => {
+        // Abort duplicate overlay setup if it exists in DOM
+        if (document.querySelector('.cnp-overlay'))
+          return;
+
         overlay.innerHTML = html;
         document.body.appendChild(overlay);
 
