@@ -224,10 +224,10 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     imagePreview.id = 'cnp-image-preview';
     imagePreview.style.height = '50%';
     try {
-      imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.png`);
+          imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.webp`);
     } catch {
       try {
-        window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script[id]').getAttribute('id'), 'Path': `media/${fileTypeIcon}.png`}, '*');
+        window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script[id]').getAttribute('id'), 'Path': `media/${fileTypeIcon}.webp`}, '*');
         window.onmessage = event => imagePreview.src = event.data;
       } catch (error) {
         logging(error);
