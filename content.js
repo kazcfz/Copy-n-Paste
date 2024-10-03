@@ -120,6 +120,7 @@ function afterDOMLoaded() {
     
 }
 
+// Sets a node up for CnP Overlay
 function setupcreateOverlay(node) {
   if (node.id != "cnp-overlay-file-input" && !node.dataset.cnpCreateListener) {
     node.addEventListener("click", createOverlay);
@@ -177,7 +178,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.id = 'cnp-image-preview';
       currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
       imagePreview.src = currentObjectURL;
-      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
       imagePreview.onload = () => {
         // Enlarge preview of smaller images
         if ((imagePreview.naturalWidth < 240 && imagePreview.naturalHeight < 135) || imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
@@ -198,7 +199,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.type = blob.type;
       currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
       imagePreview.src = currentObjectURL;
-      try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+      try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
       spinner.style.display = 'none';
     } 
     // Preview video types
@@ -214,7 +215,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
         if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
           previewGenericFile('audio_file');
         else
-          try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+          try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
       }
       spinner.style.display = 'none';
     }
@@ -236,11 +237,9 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       try {
         window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script[id]').getAttribute('id'), 'Path': `media/${fileTypeIcon}.webp`}, '*');
         window.onmessage = event => imagePreview.src = event.data;
-      } catch (error) {
-        logging(error);
-      }
+      } catch (error) {logging(error)}
     }
-    try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
+    try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
 
     let title = document.createElement('span');
     const extension = fileName.split('.').pop();
@@ -459,7 +458,7 @@ function createOverlay(event) {
           window.top.postMessage({'Type': 'paste', 'iframe': document.head.querySelector('script[id]').getAttribute('id')}, '*');
       });
     }
-  } catch (error) { logging(error); }
+  } catch (error) {logging(error)}
 }
 
 
