@@ -8,6 +8,9 @@ var lastURL = location.href;
 var clientX = 0;
 var clientY = 0;
 var ctrlVdata = null;
+var processingPreviewImage = false;
+var currentObjectURL = null;
+var reader = null; //Paste event listener's
 
 function afterDOMLoaded() {
   // Prep all input file elements
@@ -166,19 +169,14 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   let imagePreview = document.querySelector('#cnp-image-preview');
   const imagePreviewContainer = document.querySelector('#cnp-preview-container');
   const spinner = document.querySelector('.cnp-spinner');
-  const badge = document.querySelector('.cnp-preview-badge');
-
-  let fileName = blob.name;
-
-  badge.title += fileName + '\n';
-  badge.innerText = parseInt(badge.innerText) + 1;
 
   if (!imagePreview) {
     // Preview image types
     if (blob.type.split('/')[0] == 'image') {
       imagePreview = document.createElement('img');
       imagePreview.id = 'cnp-image-preview';
-      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
+      currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
+      imagePreview.src = currentObjectURL;
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       imagePreview.onload = () => {
         // Enlarge preview of smaller images
@@ -198,7 +196,8 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview = document.createElement('iframe');
       imagePreview.id = 'cnp-image-preview';
       imagePreview.type = blob.type;
-      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
+      currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type})) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
+      imagePreview.src = currentObjectURL;
       try {imagePreviewContainer.appendChild(imagePreview);} catch (error) {logging(error);}
       spinner.style.display = 'none';
     } 
@@ -209,7 +208,8 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       imagePreview.id = 'cnp-image-preview';
       imagePreview.preload = "metadata";
       imagePreview.type = blob.type;
-      imagePreview.src = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
+      currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], {type: blob.type}));
+      imagePreview.src = currentObjectURL;
       imagePreview.onloadedmetadata = () => {
         if (imagePreview.videoWidth == 0 || imagePreview.videoHeight == 0)
           previewGenericFile('audio_file');
@@ -384,21 +384,24 @@ function createOverlay(event) {
 
               // Function to handle the FileReader asynchronously
               const processFiles = file => {
-                return new Promise(resolve => {
-                  const reader = new FileReader();
-                  reader.onload = readerEvent => {
-                    let webCopiedImgSrc = '';
-                    // try {webCopiedImgSrc = event.clipboardData.getData(event.clipboardData.types[0]).match(/<img\s+src="([^"]+)"/)[1];} catch (error) {logging(error);}
-                    try {previewImage(webCopiedImgSrc, readerEvent, file);} catch (error) {logging(error);}
-                    statusMap.set('success', statusMap.get('success') + 1);
-                    resolve();
-                  };
-                  reader.onerror = () => {
-                    statusMap.set('fail', statusMap.get('fail') + 1);
-                    resolve();
-                  };
-                  reader.readAsArrayBuffer(file);
-                });
+                if (!processingPreviewImage) {
+                  processingPreviewImage = true;
+                  return new Promise(resolve => {
+                    reader = new FileReader();
+                    reader.onload = readerEvent => {
+                      let webCopiedImgSrc = '';
+                      previewImage(webCopiedImgSrc, readerEvent, file);
+                      statusMap.set('success', statusMap.get('success') + 1);
+                      resolve();
+                    };
+                    reader.onerror = () => {
+                      statusMap.set('fail', statusMap.get('fail') + 1);
+                      resolve();
+                    };
+                    reader.onabort = () => {return};
+                    reader.readAsArrayBuffer(file);
+                  });
+                }
               };
               
               // Reattach previous files for multi-file (continues in imagePreviewContainer.onclick below)
@@ -418,6 +421,11 @@ function createOverlay(event) {
                     let filename = file.name;
                     if (!filename || filename == 'image.png')
                       filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
+
+                    const badge = document.querySelector('.cnp-preview-badge');
+                    badge.title += filename + '\n';
+                    badge.innerText = parseInt(badge.innerText) + 1;
+
                     fileList.items.add(new File([file], filename, {type: file.type}));
                     return processFiles(file);
                   });
@@ -500,6 +508,9 @@ function triggerChangeEvent(originalInput) {
 // Close overlay immediate
 function closeOverlay() {
   document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
+  processingPreviewImage = false;
+  URL.revokeObjectURL(currentObjectURL);
+  reader.abort();
 }
 
 // Console logging for errors and messages
