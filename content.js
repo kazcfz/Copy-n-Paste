@@ -222,6 +222,8 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     // Preview audio type
     else if (blob.type.split('/')[0] == 'audio')
       previewGenericFile('audio_file');
+    else if (blob.type.split('/')[0] == 'text')
+      previewGenericFile('text_file');
     // Preview other file types
     else
       previewGenericFile('blank_file');
@@ -242,9 +244,9 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
     try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
 
     let title = document.createElement('span');
-    const extension = fileName.split('.').pop();
-    let baseName = fileName.slice(0, -extension.length - 1);
-    if (fileName.length > 25) {
+    const extension = blob.name.split('.').pop();
+    let baseName = blob.name.slice(0, -extension.length - 1);
+    if (blob.name.length > 25) {
       baseName = baseName.slice(0, 25);
       // Remove last character if it's a whitespace
       while (baseName[baseName.length - 1] === ' ')
