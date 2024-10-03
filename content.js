@@ -476,7 +476,7 @@ function noImage() {
 
   const overlay = document.querySelector('.cnp-overlay');
   const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
-  imagePreviewContainer.style.cursor = 'default';
+  imagePreviewContainer.style.pointerEvents = 'none';
   imagePreviewContainer.appendChild(CNP_notImage);
 
   const spinner = document.querySelector('.cnp-spinner');
