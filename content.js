@@ -181,10 +181,10 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
       try {imagePreviewContainer.appendChild(imagePreview)} catch (error) {logging(error)}
       imagePreview.onload = () => {
         // Enlarge preview of smaller images
-        if ((imagePreview.naturalWidth < 240 && imagePreview.naturalHeight < 135) || imagePreview.naturalHeight < 135 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
+        if ((imagePreview.naturalWidth < 272 && imagePreview.naturalHeight < 153) || imagePreview.naturalHeight < 153 && imagePreview.naturalWidth <= imagePreview.naturalHeight) {
           imagePreview.style.width = "auto";
           imagePreview.style.height = "100%";
-        } else if (imagePreview.naturalWidth < 240 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
+        } else if (imagePreview.naturalWidth < 272 && imagePreview.naturalWidth > imagePreview.naturalHeight) {
           imagePreview.style.width = "100%";
           imagePreview.style.height = "auto";
         }
@@ -424,6 +424,10 @@ function createOverlay(event) {
                       filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
 
                     const badge = document.querySelector('.cnp-preview-badge');
+                    if (parseInt(badge.innerText) + 1 === 1)
+                      badge.style.display = 'none';
+                    else
+                      badge.style.display = 'inline-block';
                     badge.title += filename + '\n';
                     badge.innerText = parseInt(badge.innerText) + 1;
 
@@ -511,7 +515,8 @@ function closeOverlay() {
   document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
   processingPreviewImage = false;
   URL.revokeObjectURL(currentObjectURL);
-  reader.abort();
+  if (reader != null)
+    reader.abort();
 }
 
 // Console logging for errors and messages
