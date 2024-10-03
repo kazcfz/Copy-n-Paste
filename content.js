@@ -4,38 +4,30 @@ else
   afterDOMLoaded();
 
 // Global variables
+var lastURL = location.href;
 var clientX = 0;
 var clientY = 0;
-var contentJS;
-var lastURL = location.href;
+var ctrlVdata = null;
 
 function afterDOMLoaded() {
   // Prep all input file elements
-  document.addEventListener("click", event => {
-    if (!event.target.id.startsWith("cnp-") && event.target.tagName.toLowerCase() === "input" && event.target.type === "file") {
-      closeOverlay();
-      event.target.addEventListener("click", handleFileInputClick);
-    }
-  }, true);
+  if (!document.cnpClickListener)
+    document.addEventListener("click", event => {
+      document.cnpClickListener = true;
+      if (event.target.matches("input[type='file']"))
+        setupcreateOverlay(event.target);
+    }, true);
 
-  // Message listener between window.top and iframes
-  window.addEventListener('message', event => {
-    // Execute paste events from top level since iframes can't
-    if (event.data.Type == 'paste') {
-      try {
-        document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
-      } catch (error) {
-        logging(error);
-        try {noImage();} catch (error) {logging(error);}
-      }
-    } else if (event.data.Type == 'getURL')
-      document.getElementsByClassName(event.data.iframe)[0].contentWindow.postMessage(chrome.runtime.getURL(event.data.Path));
-  });
-
-  // Check through entire DOM
+  // Check through entire DOM for:
   document.querySelectorAll('*').forEach((element, index) => {
-    // Inject script into (raw) iframes
-    if (element.tagName.toLowerCase() === 'iframe') {
+    // Raw input file elements
+    if (element.matches("input[type='file']"))
+      setupcreateOverlay(element);
+    // Shadow roots
+    else if (element.shadowRoot)
+      element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
+    // iframes
+    else if (element.matches('iframe')) {
       if (element.contentDocument) {
         const script = element.contentDocument.createElement('script');
         element.classList.add(`CnP-iframe-${index}`);
@@ -45,110 +37,126 @@ function afterDOMLoaded() {
         element.contentDocument.head.appendChild(script);
       }
     }
-  
-    // Check for shadow roots
-    if (element.shadowRoot) {
-      element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => {
-        if (fileInput.id !== "cnp-overlay-file-input")
-          fileInput.addEventListener("click", handleFileInputClick);
-      });
-    }
   });
 
   // Find and prep customized input file elements, iframes
-  const observer = new MutationObserver(mutations => {
-    // 'Reload' extension when navigated to other pages within the website
-    const url = location.href;
-    if (url !== lastURL) {
-      lastURL = url;
-      afterDOMLoaded();
-    }
+  if (!document.body.cnpMutationObserver) {
+    const observer = new MutationObserver(mutations => {
+      // 'Reload' extension when navigated to other pages within the website
+      if (lastURL !== location.href) {
+        lastURL = location.href;
+        afterDOMLoaded();
+      }
 
-    mutations.forEach(mutation => {
-      mutation.addedNodes.forEach((node, index) => {
-        // Checks if node is an input file element
-        if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
-          node.addEventListener("click", handleFileInputClick);
-        // Checks if node is a shadow root
-        else if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) {
-          const fileInputs = node.shadowRoot.querySelectorAll("input[type='file']");
-          fileInputs.forEach(fileInput => {
-            if (fileInput.id != "cnp-overlay-file-input")
-              fileInput.addEventListener("click", handleFileInputClick);
-          });
-        }
-        // Checks if node is an iframe
-        else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
-          if (node.contentDocument) {
-            const script = node.contentDocument.createElement('script');
-            node.classList.add(`CnP-mutatedIframe-${index}`);
-            script.id = `CnP-mutatedIframe-${index}`;
-            const contentJS = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('src') : null;
-            script.src = contentJS || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('content.js') : null);
-            // script.src = chrome.runtime.getURL('content.js');
-            const overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
-            script.setAttribute('overlayhtml', overlayHTML || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('overlay.html') : null));
-            // script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
-            node.contentDocument.head.appendChild(script);
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach((node, index) => {
+          // Checks if node is an input file element
+          if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
+            setupcreateOverlay(node);
+          // Checks if node is a shadow root
+          else if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) {
+            const fileInputs = node.shadowRoot.querySelectorAll("input[type='file']");
+            fileInputs.forEach(fileInput => setupcreateOverlay(fileInput));
           }
-        // Checks if sub-nodes/child are input file elements
-        else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes()) {
-          node.querySelectorAll("input[type='file']").forEach(fileInput => {
-            if (fileInput.id != "cnp-overlay-file-input")
-              fileInput.addEventListener("click", handleFileInputClick);
-          });
-        }
-        // If the added node is a document fragment, it may contain shadow hosts
-        else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-          node.childNodes.forEach(childNode => {
-            if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot) {
-              childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => {
-                if (fileInput.id != "cnp-overlay-file-input")
-                  fileInput.addEventListener("click", handleFileInputClick);
-              });
+          // Checks if node is an iframe
+          else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
+            if (node.contentDocument) {
+              const script = node.contentDocument.createElement('script');
+              node.classList.add(`CnP-mutatedIframe-${index}`);
+              script.id = `CnP-mutatedIframe-${index}`;
+              const contentJS = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('src') : null;
+              script.src = contentJS || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('content.js') : null);
+              // script.src = chrome.runtime.getURL('content.js');
+              const overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
+              script.setAttribute('overlayhtml', overlayHTML || (typeof chrome.runtime !== 'undefined' ? chrome.runtime.getURL('overlay.html') : null));
+              // script.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+              try {node.contentDocument.head.appendChild(script)} catch (error) {logging(error)}
             }
-          });
-        }
+          // Checks if sub-nodes/child are input file elements
+          else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes())
+            node.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
+          // If the added node is a document fragment, it may contain shadow hosts
+          else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+            node.childNodes.forEach(childNode => {
+              if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot)
+                childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
+            });
+          }
+        });
       });
     });
-  });
-  try {observer.observe(document.body, { childList: true, subtree: true })} catch (error) {logging(error)}
+    try {
+      observer.observe(document.body, { childList: true, subtree: true });
+      document.body.cnpMutationObserver = true;
+    } catch (error) {logging(error)}
+  }
 
-  // Record last know coord. Some pages report coords as 0,0
-  document.addEventListener('mousemove', event => {
-    clientX = event.clientX;
-    clientY = event.clientY;
-  });
+  // Message listener between window.top and iframes
+  if (!window.cnpMessageListener)
+    window.addEventListener('message', event => {
+      window.cnpMessageListener = true;
+      // Execute paste events from top level since iframes can't
+      if (event.data.Type == 'paste') {
+        try {
+          document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
+        } catch (error) {
+          logging(error);
+          try {noImage()} catch (error) {logging(error)}
+        }
+      } else if (event.data.Type == 'getURL')
+        document.getElementsByClassName(event.data.iframe)[0].contentWindow.postMessage(chrome.runtime.getURL(event.data.Path));
+    });
+
+  // Capture cursor coords for overlay position
+  if (!document.cnpCoordListener)
+    document.addEventListener('mousemove', event => {
+      document.cnpCoordListener = true;
+      clientX = event.clientX;
+      clientY = event.clientY;
+    });
+    
 }
 
-// Ctrl + V listener
-var ctrlVdata = null;
-function ctrlV(event) {
+function setupcreateOverlay(node) {
+  if (node.id != "cnp-overlay-file-input" && !node.dataset.cnpCreateListener) {
+    node.addEventListener("click", createOverlay);
+    node.dataset.cnpCreateListener = "true";
+  }
+}
+
+// Ctrl V listener
+async function ctrlV(event) {
+  document.cnpCtrlvListener = true;
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
     event.preventDefault();
     if (ctrlVdata && ctrlVdata.files) {
-      Array.prototype.forEach.call(ctrlVdata.files, blob => {
-        const reader = new FileReader();
-        let fileName = blob.name;
-        if (blob.name == 'image.png' || !blob.name)
-          fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
-        reader.onload = () => {
-          // Convert blob into file object
-          const file = new File([blob], fileName, { type: blob.type });
-          const fileList = new DataTransfer();
-          
-          // Include previously selected files for multi-file
-          for (const file of originalInput.files)
-            fileList.items.add(file);
-          fileList.items.add(file);
-          originalInput.files = fileList.files;
-          
-          triggerChangeEvent(originalInput);
-          closeOverlay();
-        };
-        reader.readAsArrayBuffer(blob);
-      });
+      const fileList = new DataTransfer();
+      // Include previously selected files for multi-file
+      [...originalInput.files].forEach(file => fileList.items.add(file));
+
+      // Append pasted files
+      const readPromise = [...ctrlVdata.files]
+        .filter(blob => !(blob.size === 0 && blob.type === ''))
+        .map(blob => {
+          return new Promise(resolve => {
+            const reader = new FileReader();
+            let fileName = blob.name;
+            if (blob.name == 'image.png' || !blob.name)
+              fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
+            reader.onload = () => {
+              const file = new File([blob], fileName, { type: blob.type });
+              fileList.items.add(file);
+              resolve();
+            };
+            reader.readAsArrayBuffer(blob);
+          });
+        });
+      await Promise.all(readPromise);
+
+      originalInput.files = fileList.files;
+      triggerChangeEvent(originalInput);
+      closeOverlay();
     }
   }
 }
@@ -181,7 +189,6 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
           imagePreview.style.width = "100%";
           imagePreview.style.height = "auto";
         }
-
         spinner.style.display = 'none';
       }
     } 
@@ -261,26 +268,8 @@ function previewImage(webCopiedImgSrc, readerEvent, blob) {
   //   fileName = fileName.replace('.png', '.gif');
 }
 
-// Clones event objects
-function cloneEvent(e) {
-  if (e===undefined || e===null)
-    return undefined;
-
-  function ClonedEvent() {};
-  let clone=new ClonedEvent();
-  for (let p in e) {
-    let d=Object.getOwnPropertyDescriptor(e, p);
-    if (d && (d.get || d.set))
-      Object.defineProperty(clone, p, d);
-    else
-      clone[p] = e[p];
-  }
-  Object.setPrototypeOf(clone, e);
-  return clone;
-}
-
 // When prepped input elements are clicked
-function handleFileInputClick(event) {
+function createOverlay(event) {
   event.preventDefault();
   originalInput = event.target;
 
@@ -289,7 +278,8 @@ function handleFileInputClick(event) {
   overlay.classList.add('cnp-overlay');
 
   // Handle Ctrl+V action
-  document.addEventListener('keydown', ctrlV);
+  if (!document.cnpCtrlvListener)
+    document.addEventListener('keydown', ctrlV);
 
   try {
     const overlayHTML = document.head.querySelector('script[overlayhtml]') !== null ? document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml') : null;
@@ -298,7 +288,7 @@ function handleFileInputClick(event) {
       fetch(urlToFetch)
       .then(response => response.text())
       .then(html => {
-        // Abort duplicate overlay setup if it exists in DOM
+        // Prevents duplicate overlay setup
         if (document.querySelector('.cnp-overlay'))
           return;
 
@@ -323,13 +313,14 @@ function handleFileInputClick(event) {
         overlayContent.style.top = overlayBottomPos + 'px';
 
         // Close overlay when clicked outside
-        document.onclick = event => {
-          let overlayContent = document.querySelector('.cnp-overlay-content');
-          while (overlayContent && !overlayContent.contains(event.target)) {
-            closeOverlay();
-            overlayContent = document.querySelector('.cnp-overlay-content');
-          }
-        };
+        if (!document.cnpRemoveListener)
+          document.addEventListener('click', event => {
+            document.cnpRemoveListener = true;
+            document.querySelectorAll('.cnp-overlay-content').forEach(overlayContent => {
+              if (!overlayContent.contains(event.target))
+                closeOverlay();
+            })
+          })
 
         // Overlay upload click listener
         const uploadBtn = overlay.querySelector('#cnp-upload-btn');
@@ -338,48 +329,44 @@ function handleFileInputClick(event) {
         // Overlay handle file input
         const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
         overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-        overlayFileInput.addEventListener('change', event => {
+        overlayFileInput.onchange = event => {
           const fileList = new DataTransfer();
-
-          // Reattach previous files
-          for (const file of originalInput.files)
-            fileList.items.add(file);
-
-          // Attach new files
-          for (const file of event.target.files)
-            fileList.items.add(file);
-
+          // Reattach previous files and append new ones
+          [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
           originalInput.files = fileList.files;
           triggerChangeEvent(originalInput);
           closeOverlay();
-        });
+        }
 
         // Follow multiple file rules of original input
         // overlayFileInput.multiple = originalInput.multiple;
 
         // Handle dragover event
         const CNP_dropText = overlay.querySelector('#cnp-drop-text');
-        overlay.addEventListener('dragover', event => {
+        overlay.ondragover = event => {
           event.stopPropagation();
           event.preventDefault();
           CNP_dropText.style.display = 'flex';
-        });
+        };
 
         // Handle dragleave event
-        overlay.addEventListener('dragleave', event => {
-          const isChild = overlay.contains(event.relatedTarget);
-          if (!isChild)
+        overlay.ondragleave = event => {
+          if (!overlay.contains(event.relatedTarget))
             CNP_dropText.style.display = 'none';
-        });
+        };
 
         // Handle drop event
-        overlay.addEventListener('drop', event => {
+        overlay.ondrop = event => {
           event.preventDefault();
           CNP_dropText.style.display = 'none';
-          const files = event.dataTransfer.files;
-          handleDroppedFiles(files, originalInput);
+          const fileList = new DataTransfer();
+          // Reattach previous files and append new ones
+          const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
+          [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
+          originalInput.files = fileList.files;
+          triggerChangeEvent(originalInput);
           closeOverlay();
-        });
+        };
 
         // Handle paste event
         document.addEventListener('paste', async event => {
@@ -396,8 +383,8 @@ function handleFileInputClick(event) {
               ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
 
               // Function to handle the FileReader asynchronously
-              const readFileAsDataURL = file => {
-                return new Promise((resolve, reject) => {
+              const processFiles = file => {
+                return new Promise(resolve => {
                   const reader = new FileReader();
                   reader.onload = readerEvent => {
                     let webCopiedImgSrc = '';
@@ -414,31 +401,39 @@ function handleFileInputClick(event) {
                 });
               };
               
-              // Include previously selected files for multi-file (continues in imagePreviewContainer click listener below)
+              // Reattach previous files for multi-file (continues in imagePreviewContainer.onclick below)
               const fileList = new DataTransfer();
-              for (const file of originalInput.files)
-                fileList.items.add(file);
+              [...originalInput.files].forEach(file => fileList.items.add(file));
 
               // Array of promises to process each file
-              const readPromises = Array.from(dataTransfer.files).map(file => {
-                let filename = file.name;
-                if (!filename || filename == 'image.png')
-                  filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
-                fileList.items.add(new File([file], filename, { type: file.type }));
-                return readFileAsDataURL(file);
-              });
-              await Promise.all(readPromises);
+              const excludedFolders = [...dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
+              if (excludedFolders.length == 0) {
+                noImage();
+                return;
+              }
+              else {
+                const readPromises = [...dataTransfer.files]
+                  .filter(file => !(file.size === 0 && file.type === ''))
+                  .map(file => {
+                    let filename = file.name;
+                    if (!filename || filename == 'image.png')
+                      filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
+                    fileList.items.add(new File([file], filename, {type: file.type}));
+                    return processFiles(file);
+                  });
+                await Promise.all(readPromises);
+              }
 
               if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
                 noImage();
               else {
                 const imagePreviewContainer = document.querySelector('#cnp-preview-container');
                 imagePreviewContainer.style.cursor = 'pointer';
-                imagePreviewContainer.addEventListener('click', () => {
+                imagePreviewContainer.onclick = () => {
                   originalInput.files = fileList.files;
                   triggerChangeEvent(originalInput);
                   closeOverlay();
-                }, {once: true});
+                };
               }
             } else
               noImage();
@@ -459,20 +454,6 @@ function handleFileInputClick(event) {
   } catch (error) { logging(error); }
 }
 
-// Console logging for errors and messages
-function logging(message) {
-  console.log('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message);
-  window.top.postMessage(('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message), '*');
-}
-
-// Close overlay immediate
-function closeOverlay() {
-  let overlay = document.querySelector('.cnp-overlay');
-  while (overlay) {
-    overlay.remove();
-    overlay = document.querySelector('.cnp-overlay');
-  }
-}
 
 // Preview 'No image' message
 function noImage() {
@@ -492,24 +473,37 @@ function noImage() {
   badge.style.display = 'none';
 }
 
+// Clones event objects
+function cloneEvent(e) {
+  if (e===undefined || e===null)
+    return undefined;
+
+  function ClonedEvent() {};
+  let clone=new ClonedEvent();
+  for (let p in e) {
+    let d=Object.getOwnPropertyDescriptor(e, p);
+    if (d && (d.get || d.set))
+      Object.defineProperty(clone, p, d);
+    else
+      clone[p] = e[p];
+  }
+  Object.setPrototypeOf(clone, e);
+  return clone;
+}
+
 // Trigger change event on original input to update value (like disabled buttons)
 function triggerChangeEvent(originalInput) {
   originalInput.dispatchEvent(new Event('change', { bubbles: true }));
   originalInput.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-// Put dropped file into original input element
-function handleDroppedFiles(files, originalInput) {
-  const fileList = new DataTransfer();
-  
-  // Reattach previous files
-  for (const file of originalInput.files)
-    fileList.items.add(file);
+// Close overlay immediate
+function closeOverlay() {
+  document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
+}
 
-  // Attach new files
-  for (const file of files)
-    fileList.items.add(file);
-
-  originalInput.files = fileList.files;
-  triggerChangeEvent(originalInput);
+// Console logging for errors and messages
+function logging(message) {
+  console.log('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message);
+  window.top.postMessage(('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message), '*');
 }
