@@ -38,10 +38,10 @@ function afterDOMLoaded() {
         initJS.src = chrome.runtime.getURL('init.js');
         element.contentDocument.head.appendChild(initJS);
 
-        const mainJS = element.contentDocument.createElement('script');
-        mainJS.id = `CnP-main-iframe-${index}`;
-        mainJS.src = chrome.runtime.getURL('main.js');
-        element.contentDocument.head.appendChild(mainJS);
+        // const mainJS = element.contentDocument.createElement('script');
+        // mainJS.id = `CnP-main-iframe-${index}`;
+        // mainJS.src = chrome.runtime.getURL('main.js');
+        // element.contentDocument.head.appendChild(mainJS);
 
         const contentJS = element.contentDocument.createElement('script');
         element.classList.add(`CnP-iframe-${index}`);
@@ -80,7 +80,7 @@ function afterDOMLoaded() {
             if (node.contentDocument) {
               // Append init.js, isolated.js, overlay.html
               const initJS = node.contentDocument.createElement('script');
-              const mainJS = node.contentDocument.createElement('script');
+              // const mainJS = node.contentDocument.createElement('script');
               const isolatedJS = node.contentDocument.createElement('script');
               node.classList.add(`CnP-mutatedIframe-${index}`);
               isolatedJS.id = `CnP-mutatedIframe-${index}`;
@@ -90,10 +90,10 @@ function afterDOMLoaded() {
               else if (typeof chrome.runtime !== 'undefined')
                 initJS.src = chrome.runtime.getURL('init.js');
 
-              if (document.head.querySelector('script[id*="CnP-main-iframe"]'))
-                mainJS.src = document.head.querySelector('script[id*="CnP-main-iframe"]').getAttribute('src');
-              else if (typeof chrome.runtime !== 'undefined')
-                mainJS.src = chrome.runtime.getURL('main.js');
+              // if (document.head.querySelector('script[id*="CnP-main-iframe"]'))
+              //   mainJS.src = document.head.querySelector('script[id*="CnP-main-iframe"]').getAttribute('src');
+              // else if (typeof chrome.runtime !== 'undefined')
+              //   mainJS.src = chrome.runtime.getURL('main.js');
 
               if (document.head.querySelector('script[overlayhtml]') !== null) {
                 isolatedJS.src = document.head.querySelector('script[overlayhtml]').getAttribute('src');
@@ -106,7 +106,7 @@ function afterDOMLoaded() {
 
               try {
                 node.contentDocument.head.appendChild(initJS);
-                node.contentDocument.head.appendChild(mainJS);
+                // node.contentDocument.head.appendChild(mainJS);
                 node.contentDocument.head.appendChild(isolatedJS);
               } catch (error) {logging(error)}
             }
