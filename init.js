@@ -253,7 +253,7 @@ function createOverlay(event) {
 
           // Overlay handle file input
           overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-          overlayFileInput.addEventListener('cancel', () => closeOverlay());
+          overlayFileInput.oncancel = () => closeOverlay();
           overlayFileInput.onchange = event => {
             const fileList = new DataTransfer();
             // Reattach previous files and append new ones
