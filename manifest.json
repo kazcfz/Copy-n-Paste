@@ -27,7 +27,7 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["overlay.html", "init.js", "isolated.js", "media/*"],
+        "resources": ["overlay.html", "init.js", "isolated.js", "main.js", "media/*"],
         "matches": ["<all_urls>"]
       }
     ]
