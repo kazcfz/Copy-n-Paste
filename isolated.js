@@ -11,6 +11,53 @@ else
 // Global variables
 var lastURL = location.href;
 
+// TEST
+  // const CnPtag = document.createElement('Copy-n-Paste');
+  // if (document.head.querySelector('Copy-n-Paste'))
+  //   CnPtag.setAttribute('overlay-html', document.head.querySelector('Copy-n-Paste').getAttribute('overlay-html'));
+  // else
+  //   try {CnPtag.setAttribute('overlay-html', chrome.runtime.getURL('overlay.html'))}
+  //   catch {
+  //     if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
+  //       window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `overlay.html`}, '*');
+  //     else
+  //       window.top.postMessage({'Type': 'getURL', 'Path': `overlay.html`}, '*');
+
+  //     window.onmessage = event => {
+  //       if (event.data.Type == 'getURL-response')
+  //         CnPtag.setAttribute('overlay-html', event.data.URL);
+  //     }
+  //   }
+  // document.head.appendChild(CnPtag);
+  //TEST
+
+// Inject init.js to the DOM
+if (!document.head.querySelector('CnP-init')) {
+  const initJS = document.createElement('script');
+  initJS.id = `CnP-init`;
+  if (document.head.querySelector('CnP-init')) {
+    initJS.src = document.head.querySelector('CnP-init').getAttribute('src');
+    initJS.setAttribute('overlayhtml', document.head.querySelector('CnP-init').getAttribute('overlayhtml'));
+  }
+  else
+    try {
+      initJS.src = chrome.runtime.getURL('init.js');
+      initJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+    }
+    catch {
+      if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
+        window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `init.js`}, '*');
+      else
+        window.top.postMessage({'Type': 'getURL', 'Path': `init.js`}, '*');
+
+      window.onmessage = event => {
+        if (event.data.Type == 'getURL-response')
+          initJS.src = event.data.URL;
+      }
+    }
+  document.head.appendChild(initJS);
+}
+
 function afterDOMLoaded() {
   // Prep all input file elements
   if (!document.cnpClickListener)
@@ -37,11 +84,6 @@ function afterDOMLoaded() {
         initJS.id = `CnP-init-iframe-${index}`;
         initJS.src = chrome.runtime.getURL('init.js');
         element.contentDocument.head.appendChild(initJS);
-
-        // const mainJS = element.contentDocument.createElement('script');
-        // mainJS.id = `CnP-main-iframe-${index}`;
-        // mainJS.src = chrome.runtime.getURL('main.js');
-        // element.contentDocument.head.appendChild(mainJS);
 
         const contentJS = element.contentDocument.createElement('script');
         element.classList.add(`CnP-iframe-${index}`);
@@ -80,34 +122,29 @@ function afterDOMLoaded() {
             if (node.contentDocument) {
               // Append init.js, isolated.js, overlay.html
               const initJS = node.contentDocument.createElement('script');
-              // const mainJS = node.contentDocument.createElement('script');
               const isolatedJS = node.contentDocument.createElement('script');
               node.classList.add(`CnP-mutatedIframe-${index}`);
               isolatedJS.id = `CnP-mutatedIframe-${index}`;
 
               if (document.head.querySelector('script[id*="CnP-init-iframe"]'))
                 initJS.src = document.head.querySelector('script[id*="CnP-init-iframe"]').getAttribute('src');
-              else if (typeof chrome.runtime !== 'undefined')
+              else
                 initJS.src = chrome.runtime.getURL('init.js');
-
-              // if (document.head.querySelector('script[id*="CnP-main-iframe"]'))
-              //   mainJS.src = document.head.querySelector('script[id*="CnP-main-iframe"]').getAttribute('src');
-              // else if (typeof chrome.runtime !== 'undefined')
-              //   mainJS.src = chrome.runtime.getURL('main.js');
 
               if (document.head.querySelector('script[overlayhtml]') !== null) {
                 isolatedJS.src = document.head.querySelector('script[overlayhtml]').getAttribute('src');
                 isolatedJS.setAttribute('overlayhtml', document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml'));
               }
-              else if (typeof chrome.runtime !== 'undefined') {
+              else {
                 isolatedJS.src = chrome.runtime.getURL('isolated.js');
                 isolatedJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
               }
 
               try {
                 node.contentDocument.head.appendChild(initJS);
-                // node.contentDocument.head.appendChild(mainJS);
                 node.contentDocument.head.appendChild(isolatedJS);
+                console.log(node)
+                console.log(node.contentDocument.head)
               } catch (error) {logging(error)}
             }
           
@@ -137,12 +174,16 @@ function afterDOMLoaded() {
       window.cnpMessageListener = true;
       // Execute paste events from top level since iframes can't
       if (event.data.Type == 'paste') {
-        try {
-          document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
-        } catch (error) {
-          logging(error);
-          try {noImage()} catch (error) {logging(error)}
-        }
+        console.log(document)
+        if (!event.data.iframe)
+          document.execCommand('paste');
+        else
+          try {
+            document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
+          } catch (error) {
+            logging(error);
+            try {noImage()} catch (error) {logging(error)}
+          }
       } else if (event.data.Type == 'getURL')
         if (event.data.iframe)
           document.getElementsByClassName(event.data.iframe)[0].contentWindow.postMessage({'Type': 'getURL-response', 'URL': chrome.runtime.getURL(event.data.Path)}, '*');
