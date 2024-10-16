@@ -2,11 +2,30 @@
 Initializes global variables and functions.
 */
 
+// Detect and override input elements that uses .click()
+var oriClick = HTMLElement.prototype.click;
+HTMLElement.prototype.click = function(...args) {
+  if (this.matches("input[type='file']") && !this.id.toLowerCase().startsWith('cnp')) {
+    setupcreateOverlay(this);
+    oriClick.call(this, ...args);
+  } else
+    return oriClick.apply(this, arguments);
+};
+
+// Detect and override input elements that uses .showPicker()
+var oriShowPicker = HTMLInputElement.prototype.showPicker;
+HTMLInputElement.prototype.showPicker = function() {
+  if (this.matches("input[type='file']")) {
+    this.click();
+  } else
+    return oriShowPicker.apply(this, arguments);
+};
+
 // Global variables
 var clientX = 0;
 var clientY = 0;
+var overlayID = null;
 var ctrlVdata = null;
-var processingPreviewImage = false;
 var currentObjectURL = null;
 var reader = null; //Paste event listener's
 
@@ -28,7 +47,6 @@ function setupcreateOverlay(node) {
 
 // Ctrl V listener
 async function ctrlV(event) {
-  document.cnpCtrlvListener = true;
   const overlayContent = document.querySelector('.cnp-overlay-content');
   if (overlayContent && event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
     event.preventDefault();
@@ -64,7 +82,10 @@ async function ctrlV(event) {
 }
 
 // Preview copied image in overlay
-function previewImage(webCopiedImgSrc, readerEvent, blob) {
+function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
+  if (overlayID !== requestedOverlayID)
+    return;
+
   let imagePreview = document.querySelector('#cnp-image-preview');
   const imagePreviewContainer = document.querySelector('#cnp-preview-container');
   const spinner = document.querySelector('.cnp-spinner');
@@ -183,19 +204,20 @@ function createOverlay(event) {
   const overlay = document.createElement('div');
   overlay.classList.add('cnp-overlay');
 
-  // Handle Ctrl+V action
-  if (!document.cnpCtrlvListener)
-    document.addEventListener('keydown', ctrlV);
+  // Unique ID for each created overlay
+  const hexArray = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(byte => byte.toString(16).padStart(2, '0'));
+  const uuid = [hexArray.slice(0, 4).join(''), hexArray.slice(4, 6).join(''), '4' + hexArray.slice(6, 7).join(''), (parseInt(hexArray[8], 16) & 0x3 | 0x8).toString(16) + hexArray.slice(9, 11).join(''), hexArray.slice(11, 16).join('')].join('-');
+  overlay.id = overlayID = uuid;
 
   try {
     function fetchURL() {
       return new Promise(resolve => {
         var urlToFetch = null;
-        if (document.head.querySelector('script[overlayhtml]') !== null) {
+        if (document.head.querySelector('script[overlayhtml]')) {
           urlToFetch = document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml');
           resolve(urlToFetch);
         }
-        if (!urlToFetch && typeof chrome.runtime !== 'undefined')
+        else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
           try {
             urlToFetch = chrome.runtime.getURL('overlay.html');
             resolve(urlToFetch);
@@ -211,7 +233,13 @@ function createOverlay(event) {
                 resolve(urlToFetch);
               }
             }
-        } else
+          }
+        else if (document.head.querySelector('copy-n-paste'))
+          try {
+            urlToFetch = document.head.querySelector('copy-n-paste').getAttribute('overlay-html');
+            resolve(urlToFetch);
+          } catch {}
+        else
           resolve(urlToFetch);
       });
     }
@@ -253,7 +281,7 @@ function createOverlay(event) {
 
           // Overlay handle file input
           overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-          overlayFileInput.oncancel = () => closeOverlay();
+          // overlayFileInput.oncancel = () => closeOverlay();
           overlayFileInput.onchange = event => {
             const fileList = new DataTransfer();
             // Reattach previous files and append new ones
@@ -304,6 +332,9 @@ function createOverlay(event) {
             closeOverlay();
           };
 
+          // Handle Ctrl+V action
+          document.addEventListener('keydown', ctrlV);
+
           // Handle paste event
           document.addEventListener('paste', async event => {
             event.stopPropagation();
@@ -320,24 +351,21 @@ function createOverlay(event) {
 
                 // Function to handle the FileReader asynchronously
                 const processFiles = file => {
-                  if (!processingPreviewImage) {
-                    processingPreviewImage = true;
-                    return new Promise(resolve => {
-                      reader = new FileReader();
-                      reader.onload = readerEvent => {
-                        let webCopiedImgSrc = '';
-                        previewImage(webCopiedImgSrc, readerEvent, file);
-                        statusMap.set('success', statusMap.get('success') + 1);
-                        resolve();
-                      };
-                      reader.onerror = () => {
-                        statusMap.set('fail', statusMap.get('fail') + 1);
-                        resolve();
-                      };
-                      reader.onabort = () => {return};
-                      reader.readAsArrayBuffer(file);
-                    });
-                  }
+                  return new Promise(resolve => {
+                    reader = new FileReader();
+                    reader.onload = readerEvent => {
+                      let webCopiedImgSrc = '';
+                      previewImage(webCopiedImgSrc, readerEvent, file, overlay.id);
+                      statusMap.set('success', statusMap.get('success') + 1);
+                      resolve();
+                    };
+                    reader.onerror = () => {
+                      statusMap.set('fail', statusMap.get('fail') + 1);
+                      resolve();
+                    };
+                    reader.onabort = () => {return};
+                    reader.readAsArrayBuffer(file);
+                  });
                 };
                 
                 // Reattach previous files for multi-file (continues in imagePreviewContainer.onclick below)
@@ -351,6 +379,7 @@ function createOverlay(event) {
                   return;
                 }
                 else {
+                  var processedFirstFile = null;
                   const readPromises = [...dataTransfer.files]
                     .filter(file => !(file.size === 0 && file.type === ''))
                     .map(file => {
@@ -367,7 +396,11 @@ function createOverlay(event) {
                       badge.innerText = parseInt(badge.innerText) + 1;
 
                       fileList.items.add(new File([file], filename, {type: file.type}));
-                      return processFiles(file);
+                      
+                      if (!processedFirstFile) {
+                        processedFirstFile = true;
+                        return processFiles(file);
+                      }
                     });
                   await Promise.all(readPromises);
                 }
@@ -391,8 +424,11 @@ function createOverlay(event) {
           // Trigger paste event
           overlay.contentEditable = true;
           overlay.focus();
-          document.execCommand('paste');
+          // document.execCommand('paste');
+          window.top.postMessage({'Type': 'paste'}, '*');
           overlay.contentEditable = false;
+
+          console.log(document)
 
           // Trigger paste event for iframe
           if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
@@ -449,7 +485,7 @@ function triggerChangeEvent(originalInput) {
 // Close overlay immediate
 function closeOverlay() {
   document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
-  processingPreviewImage = false;
+  document.removeEventListener('keydown', ctrlV);
   URL.revokeObjectURL(currentObjectURL);
   if (reader != null)
     reader.abort();
