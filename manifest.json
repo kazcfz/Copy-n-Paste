@@ -16,13 +16,6 @@
         "all_frames": true,
         "matches": ["<all_urls>"],
         "world": "ISOLATED"
-      },
-      {
-        "js": ["init.js", "main.js"],
-        "all_frames": true,
-        "matches": ["<all_urls>"],
-        "run_at": "document_start",
-        "world": "MAIN"
       }
     ],
     "web_accessible_resources": [
