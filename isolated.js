@@ -52,7 +52,10 @@ if (!document.head.querySelector('CnP-init')) {
 
       window.onmessage = event => {
         if (event.data.Type == 'getURL-response')
-          initJS.src = event.data.URL;
+          if (isFirefox)
+            initJS.src = event.data.URL;
+          else
+            initJS.src = trustedTypes.createPolicy("forceInner", {createScriptURL: (to_escape) => to_escape}).createScriptURL(event.data.URL);
       }
     }
   document.head.appendChild(initJS);
@@ -88,7 +91,7 @@ function afterDOMLoaded() {
         const contentJS = element.contentDocument.createElement('script');
         element.classList.add(`CnP-iframe-${index}`);
         contentJS.id = `CnP-iframe-${index}`;
-        contentJS.src = chrome.runtime.getURL('isolated.js');
+        contentJS.src = chrome.runtime.getURL('content.js');
         contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
         element.contentDocument.head.appendChild(contentJS);
       }
@@ -120,11 +123,11 @@ function afterDOMLoaded() {
           // iframes
           else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
             if (node.contentDocument) {
-              // Append init.js, isolated.js, overlay.html
+              // Append init.js, content.js, overlay.html
               const initJS = node.contentDocument.createElement('script');
-              const isolatedJS = node.contentDocument.createElement('script');
+              const contentJS = node.contentDocument.createElement('script');
               node.classList.add(`CnP-mutatedIframe-${index}`);
-              isolatedJS.id = `CnP-mutatedIframe-${index}`;
+              contentJS.id = `CnP-mutatedIframe-${index}`;
 
               if (document.head.querySelector('script[id*="CnP-init-iframe"]'))
                 initJS.src = document.head.querySelector('script[id*="CnP-init-iframe"]').getAttribute('src');
@@ -132,17 +135,17 @@ function afterDOMLoaded() {
                 initJS.src = chrome.runtime.getURL('init.js');
 
               if (document.head.querySelector('script[overlayhtml]') !== null) {
-                isolatedJS.src = document.head.querySelector('script[overlayhtml]').getAttribute('src');
-                isolatedJS.setAttribute('overlayhtml', document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml'));
+                contentJS.src = document.head.querySelector('script[overlayhtml]').getAttribute('src');
+                contentJS.setAttribute('overlayhtml', document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml'));
               }
               else {
-                isolatedJS.src = chrome.runtime.getURL('isolated.js');
-                isolatedJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
+                contentJS.src = chrome.runtime.getURL('content.js');
+                contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
               }
 
               try {
                 node.contentDocument.head.appendChild(initJS);
-                node.contentDocument.head.appendChild(isolatedJS);
+                node.contentDocument.head.appendChild(contentJS);
                 console.log(node)
                 console.log(node.contentDocument.head)
               } catch (error) {logging(error)}
