@@ -11,26 +11,6 @@ else
 // Global variables
 var lastURL = location.href;
 
-// TEST
-  // const CnPtag = document.createElement('Copy-n-Paste');
-  // if (document.head.querySelector('Copy-n-Paste'))
-  //   CnPtag.setAttribute('overlay-html', document.head.querySelector('Copy-n-Paste').getAttribute('overlay-html'));
-  // else
-  //   try {CnPtag.setAttribute('overlay-html', chrome.runtime.getURL('overlay.html'))}
-  //   catch {
-  //     if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-  //       window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `overlay.html`}, '*');
-  //     else
-  //       window.top.postMessage({'Type': 'getURL', 'Path': `overlay.html`}, '*');
-
-  //     window.onmessage = event => {
-  //       if (event.data.Type == 'getURL-response')
-  //         CnPtag.setAttribute('overlay-html', event.data.URL);
-  //     }
-  //   }
-  // document.head.appendChild(CnPtag);
-  //TEST
-
 // Inject init.js to the DOM
 if (!document.head.querySelector('CnP-init')) {
   const initJS = document.createElement('script');
