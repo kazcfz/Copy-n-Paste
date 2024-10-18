@@ -12,7 +12,7 @@
     "permissions": ["clipboardRead"],
     "content_scripts": [
       {
-        "js": ["init.js", "isolated.js"],
+        "js": ["init.js", "content.js"],
         "all_frames": true,
         "matches": ["<all_urls>"],
         "world": "ISOLATED"
@@ -20,7 +20,7 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["overlay.html", "init.js", "isolated.js", "main.js", "media/*"],
+        "resources": ["overlay.html", "init.js", "content.js", "media/*"],
         "matches": ["<all_urls>"]
       }
     ]
