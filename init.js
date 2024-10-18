@@ -28,6 +28,8 @@ var overlayID = null;
 var ctrlVdata = null;
 var currentObjectURL = null;
 var reader = null; //Paste event listener's
+var isFirefox = typeof InstallTrigger !== 'undefined';
+var isChrome = !!window.chrome && (!!window.chrome.webstore || !!window.chrome.runtime);
 
 // Capture cursor coords for overlay position
 if (!document.cnpCoordListener)
@@ -209,40 +211,42 @@ function createOverlay(event) {
   const uuid = [hexArray.slice(0, 4).join(''), hexArray.slice(4, 6).join(''), '4' + hexArray.slice(6, 7).join(''), (parseInt(hexArray[8], 16) & 0x3 | 0x8).toString(16) + hexArray.slice(9, 11).join(''), hexArray.slice(11, 16).join('')].join('-');
   overlay.id = overlayID = uuid;
 
-  try {
-    function fetchURL() {
-      return new Promise(resolve => {
-        var urlToFetch = null;
-        if (document.head.querySelector('script[overlayhtml]')) {
-          urlToFetch = document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml');
+  // Fetch overlay.html
+  function fetchURL() {
+    return new Promise(resolve => {
+      var urlToFetch = null;
+      if (document.head.querySelector('script[overlayhtml]')) {
+        urlToFetch = document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml');
+        resolve(urlToFetch);
+      }
+      else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
+        try {
+          urlToFetch = chrome.runtime.getURL('overlay.html');
           resolve(urlToFetch);
-        }
-        else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
-          try {
-            urlToFetch = chrome.runtime.getURL('overlay.html');
-            resolve(urlToFetch);
-          } 
-          catch {
-            if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-              window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': 'overlay.html'}, '*');
-            else
-              window.top.postMessage({'Type': 'getURL', 'Path': 'overlay.html'}, '*');
-            window.onmessage = event => {
-              if (event.data.Type == 'getURL-response') {
-                urlToFetch = event.data.URL;
-                resolve(urlToFetch);
-              }
+        } 
+        catch {
+          if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
+            window.top.postMessage({'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': 'overlay.html'}, '*');
+          else
+            window.top.postMessage({'Type': 'getURL', 'Path': 'overlay.html'}, '*');
+          window.onmessage = event => {
+            if (event.data.Type == 'getURL-response') {
+              urlToFetch = event.data.URL;
+              resolve(urlToFetch);
             }
           }
-        else if (document.head.querySelector('copy-n-paste'))
-          try {
-            urlToFetch = document.head.querySelector('copy-n-paste').getAttribute('overlay-html');
-            resolve(urlToFetch);
-          } catch {}
-        else
+        }
+      else if (document.head.querySelector('copy-n-paste'))
+        try {
+          urlToFetch = document.head.querySelector('copy-n-paste').getAttribute('overlay-html');
           resolve(urlToFetch);
-      });
-    }
+        } catch (error) {logging(error)}
+      else
+        resolve(urlToFetch);
+    });
+  }
+
+  try {
     fetchURL().then(urlToFetch => {
       if (urlToFetch) {
         fetch(urlToFetch)
@@ -252,9 +256,12 @@ function createOverlay(event) {
           if (document.querySelector('.cnp-overlay'))
             return;
 
-          escapeHTMLPolicy = trustedTypes.createPolicy("forceInner", {createHTML: (to_escape) => to_escape})
-          overlay.innerHTML = escapeHTMLPolicy.createHTML(html);
-          // overlay.innerHTML = html;
+          // Checks browser type to either use trustedTypes or not (Google Slides requirement)
+          if (isFirefox)
+            overlay.innerHTML = html;
+          else
+            overlay.innerHTML = trustedTypes.createPolicy("forceInner", {createHTML: (to_escape) => to_escape}).createHTML(html);
+          
           document.body.appendChild(overlay);
 
           // Position overlay to cursor coord
@@ -281,7 +288,7 @@ function createOverlay(event) {
 
           // Overlay handle file input
           overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-          // overlayFileInput.oncancel = () => closeOverlay();
+          overlayFileInput.oncancel = () => closeOverlay();
           overlayFileInput.onchange = event => {
             const fileList = new DataTransfer();
             // Reattach previous files and append new ones
@@ -336,7 +343,9 @@ function createOverlay(event) {
           document.addEventListener('keydown', ctrlV);
 
           // Handle paste event
+          var isPasteListenerTriggered = false;
           document.addEventListener('paste', async event => {
+            isPasteListenerTriggered = true;
             event.stopPropagation();
             event.preventDefault();
             
@@ -424,8 +433,11 @@ function createOverlay(event) {
           // Trigger paste event
           overlay.contentEditable = true;
           overlay.focus();
-          // document.execCommand('paste');
-          window.top.postMessage({'Type': 'paste'}, '*');
+          document.execCommand('paste');
+          if (!isPasteListenerTriggered)
+            window.top.postMessage({'Type': 'paste'}, '*');
+          isPasteListenerTriggered = false;
+          
           overlay.contentEditable = false;
 
           console.log(document)
