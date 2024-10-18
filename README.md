@@ -6,7 +6,7 @@
 </p>
 <br><br><br><br>
 
-Copy-n-Paste is a lightweight Chromium and Firefox extension to simplify uploading copied screenshots, images, files from your clipboard. No need to save as files. Similar to Opera Easy Files.
+Copy-n-Paste: Clipboard Upload Simplified is a lightweight Chromium and Firefox extension to simplify uploading copied screenshots, images, files from your clipboard. No need to save as files. Similar to Opera Easy Files.
 <p align="center"><img src="https://i.imgur.com/TXV2SuL.png" alt="Screenshot Preview" width="49%" height="49%"> <img src="https://i.imgur.com/jqB4WFe.png" alt="Screenshot Preview" width="49%" height="49%"></p>
 <br><br>
 
