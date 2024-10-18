@@ -388,7 +388,8 @@ function createOverlay(event) {
                   return;
                 }
                 else {
-                  var processedFirstFile = null;
+                  const badge = document.querySelector('.cnp-preview-badge');
+                  var isFirstFile = true;
                   const readPromises = [...dataTransfer.files]
                     .filter(file => !(file.size === 0 && file.type === ''))
                     .map(file => {
@@ -396,18 +397,16 @@ function createOverlay(event) {
                       if (!filename || filename == 'image.png')
                         filename = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+file.type.split('/').pop();
 
-                      const badge = document.querySelector('.cnp-preview-badge');
-                      if (parseInt(badge.innerText) + 1 === 1)
-                        badge.style.display = 'none';
-                      else
-                        badge.style.display = 'inline-block';
+                      // Badge counter setup
                       badge.title += filename + '\n';
                       badge.innerText = parseInt(badge.innerText) + 1;
+                      if (parseInt(badge.innerText) > 1)
+                        badge.style.display = 'inline-block';
 
                       fileList.items.add(new File([file], filename, {type: file.type}));
                       
-                      if (!processedFirstFile) {
-                        processedFirstFile = true;
+                      if (isFirstFile) {
+                        isFirstFile = false;
                         return processFiles(file);
                       }
                     });
