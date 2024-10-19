@@ -25,7 +25,9 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 - **Wide cross-site compatibility** – Works on popular websites (Google Docs, Hugging Face, Facebook, Instagram, Twitter, YouTube, and more)!
 <br><br>
 
-## Compatibility
+## Browser Compatibility
+<table><tr><td>
+    
 | Browser | Compatible? |
 | :------ | :---------: |
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/a/a0/Firefox_logo%2C_2019.svg" alt="Firefox" height="27px"></sub></sub> <span>Firefox</span>  | **✓** |
@@ -33,9 +35,14 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/9/98/Microsoft_Edge_logo_%282019%29.svg" alt="Edge" height="27px"></sub></sub> <span>Edge</span>  | **✓** |
 | <sub><sub><img src="https://brave.com/static-assets/images/brave-logo-sans-text.svg" alt="Brave" height="27px"></sub></sub> <span>Brave</span>  | **✓** |
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/e/e4/Vivaldi_web_browser_logo.svg" alt="Vivaldi" height="27px"></sub></sub> <span>Vivaldi</span>  | **✓** |
-| <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/4/49/Opera_2015_icon.svg" alt="Opera" height="27px"></sub></sub> <span>Opera</span>  | **?** |
+| <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/4/49/Opera_2015_icon.svg" alt="Opera" height="27px"></sub></sub> <span>Opera</span>  | **✓*** |
 
-_Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested_
+</td><td>
+
+<i>Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested</i><br>
+<i>*Works with Opera Easy Files enabled, which is activated when clicking [+ Upload File] button.</i>
+
+</td></tr></table>
 <br><br>
 
 ## Getting Started (for <sub><img src="https://upload.wikimedia.org/wikipedia/commons/2/28/Chromium_Logo.svg" height="27px"></sub> Chromium developers/testers)
