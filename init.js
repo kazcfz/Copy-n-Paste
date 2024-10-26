@@ -67,7 +67,7 @@ async function ctrlV(event) {
             if (blob.name == 'image.png' || !blob.name)
               fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
             reader.onload = () => {
-              const file = new File([blob], fileName, { type: blob.type });
+              const file = new File([blob], fileName, {type: blob.type, lastModified: file.lastModified});
               fileList.items.add(file);
               resolve();
             };
@@ -403,7 +403,7 @@ function createOverlay(event) {
                       if (parseInt(badge.innerText) > 1)
                         badge.style.display = 'inline-block';
 
-                      fileList.items.add(new File([file], filename, {type: file.type}));
+                      fileList.items.add(new File([file], filename, {type: file.type, lastModified: file.lastModified}));
                       
                       if (isFirstFile) {
                         isFirstFile = false;
