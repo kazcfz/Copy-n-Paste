@@ -1,4 +1,4 @@
-<p align="center"><img src="https://i.imgur.com/M9eJymK.png" alt="Paste Image Uploader" width="75%" height="75%"></p>
+<p align="center"><img src="media_kit/banner.svg" alt="Copy-n-Paste: Clipboard Upload Simplified" width="580px"></p>
 <p align="center">
     <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/Google/Google/Chrome%20Web%20Store/Available%20in%20the%20Chrome%20Web%20Store%20(Solid%20Background).svg" alt="Get Copy-n-Paste for Chromium" height="75px"></a>
     <a href="https://addons.mozilla.org/en-US/firefox/addon/copy-n-paste/"><img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get Copy-n-Paste for Firefox" height="75px"></a>
