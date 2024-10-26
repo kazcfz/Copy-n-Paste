@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:realworld="http://www.rw-designer.com/export-svg" width="966px" height="1302px">
+  <defs>
+    <linearGradient id="G0" x1="0.522459%" x2="99.8874%" y1="17.8004%" y2="121.459%">
+      <stop offset="0%" stop-color="#d9d7e7" />
+      <stop offset="12.7947%" stop-color="#eccee7" />
+      <stop offset="26.2623%" stop-color="#eecee7" />
+      <stop offset="44.1077%" stop-color="#e9daed" />
+      <stop offset="63.299%" stop-color="#ead9ee" />
+      <stop offset="78.114%" stop-color="#fcdcf3" />
+      <stop offset="88.8884%" stop-color="#faddf4" />
+      <stop offset="100%" stop-color="#f8ddf5" />
+    </linearGradient>
+    <linearGradient id="G1" x1="-75.2883%" x2="178.541%" y1="1.73024%" y2="1088.03%">
+      <stop offset="0%" stop-color="#d9d7e7" />
+      <stop offset="12.7947%" stop-color="#eccee7" />
+      <stop offset="26.2623%" stop-color="#eecee7" />
+      <stop offset="44.1077%" stop-color="#e9daed" />
+      <stop offset="63.299%" stop-color="#ead9ee" />
+      <stop offset="78.114%" stop-color="#fcdcf3" />
+      <stop offset="88.8884%" stop-color="#faddf4" />
+      <stop offset="100%" stop-color="#f8ddf5" />
+    </linearGradient>
+  </defs>
+  <g inkscape:groupmode="layer" inkscape:label="layer 0">
+    <path d="M 0 123C 0 81.5786 33.5786 47 75 47C 75 47 193.114 47 240 47C 248 47 267 48 267 83C 265 131 275 139 307 141C 311.99 141.312 472.455 141 480 141C 488.421 141 633.006 141.216 637 141C 674 139 690 130 688 83C 686.512 48.0316 706 47 715 47C 739 47 891 47 891 47C 932.421 47 966 81.5786 966 123L 966 1227C 966 1268.42 932.421 1302 891 1302L 75 1302C 33.5786 1302 0 1268.42 0 1227C 0 1227 0 123 0 123 z" fill="url(#G0)" fill-rule="evenodd" />
+    <rect fill="url(#G1)" height="120" rx="30" ry="30" width="379" x="288" y="0" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="layer 3">
+    <ellipse cx="320.5" cy="510.5" fill="#1b1f22" rx="72.5" ry="72.5" />
+    <path d="M 277 698C 293.103 684.118 312 693 312 693L 551 888L 149 889L 142 889L 136 888L 129 884C 129 884 125.413 881.649 124 880C 122.422 878.159 119 875 119 875C 119 875 115 870 114 868C 113 866 113 864 113 864C 113 864 112 861.5 112 859C 112 856.5 113 853 113 853C 113 853 115 850.5 116 848C 117 845.5 121 842 121 842L 180 786C 180 786 248 723 277 698 z" fill="#1b1f22" fill-rule="evenodd" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="layer 4">
+    <path d="M 628 608C 609 601 574 641 574 641L 330 888L 798 889L 805 889L 811 888L 818 884C 818 884 821.587 881.649 823 880C 824.578 878.159 828 875 828 875C 828 875 832 870 833 868C 834 866 834 864 834 864C 834 864 835 861.5 835 859C 835 856.5 835 852 835 852C 835 852 836 846.5 835 844C 834 841.5 835 821 835 821C 835 821 836 743 836 726C 836 722.5 837.453 712.75 836 708C 834.547 703.25 829.694 699.847 822 696C 814 692 783 679 781 678C 777 676 728 654 728 654C 728 654 663.928 621.237 628 608 z" fill="#1b1f22" fill-rule="evenodd" />
+  </g>
+</svg>

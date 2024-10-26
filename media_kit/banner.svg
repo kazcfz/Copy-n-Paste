@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:realworld="http://www.rw-designer.com/export-svg" width="3255px" height="1402px">
+  <defs>
+    <linearGradient id="G0" x1="0.522459%" x2="99.8874%" y1="17.8004%" y2="121.459%">
+      <stop offset="0%" stop-color="#d9d7e7" />
+      <stop offset="12.7947%" stop-color="#eccee7" />
+      <stop offset="26.2623%" stop-color="#eecee7" />
+      <stop offset="44.1062%" stop-color="#e9daed" />
+      <stop offset="63.299%" stop-color="#ead9ee" />
+      <stop offset="78.114%" stop-color="#fcdcf3" />
+      <stop offset="88.8884%" stop-color="#faddf4" />
+      <stop offset="100%" stop-color="#f8ddf5" />
+    </linearGradient>
+    <linearGradient id="G1" x1="-75.2883%" x2="178.541%" y1="1.73024%" y2="1088.03%">
+      <stop offset="0%" stop-color="#d9d7e7" />
+      <stop offset="12.7947%" stop-color="#eccee7" />
+      <stop offset="26.2623%" stop-color="#eecee7" />
+      <stop offset="44.1062%" stop-color="#e9daed" />
+      <stop offset="63.299%" stop-color="#ead9ee" />
+      <stop offset="78.114%" stop-color="#fcdcf3" />
+      <stop offset="88.8884%" stop-color="#faddf4" />
+      <stop offset="100%" stop-color="#f8ddf5" />
+    </linearGradient>
+    <linearGradient id="G2" x1="16.67%" x2="83.33%" y1="16.67%" y2="83.33%">
+      <stop offset="0%" stop-color="#e1d4e7" />
+      <stop offset="10.7744%" stop-color="#edcee7" />
+      <stop offset="28.6198%" stop-color="#eecfe7" />
+      <stop offset="47.1382%" stop-color="#ebd5eb" />
+      <stop offset="67.0039%" stop-color="#e9daed" />
+      <stop offset="80.1343%" stop-color="#ead9ee" />
+      <stop offset="90.2357%" stop-color="#fadcf2" />
+      <stop offset="100%" stop-color="#f9ddf5" />
+    </linearGradient>
+  </defs>
+  <g inkscape:groupmode="layer" inkscape:label="copy-n-paste logo">
+    <path d="M 128 171C 128 129.579 161.579 95 203 95C 203 95 321.114 95 368 95C 376 95 395 96 395 131C 393 179 403 187 435 189C 439.99 189.312 600.455 189 608 189C 616.421 189 761.006 189.216 765 189C 802 187 818 178 816 131C 814.512 96.0316 834 95 843 95C 867 95 1019 95 1019 95C 1060.42 95 1094 129.579 1094 171L 1094 1275C 1094 1316.42 1060.42 1350 1019 1350L 203 1350C 161.579 1350 128 1316.42 128 1275C 128 1275 128 171 128 171 z" fill="url(#G0)" fill-rule="evenodd" />
+    <rect fill="url(#G1)" height="120" rx="30" ry="30" width="379" x="416" y="50" />
+    <ellipse cx="448.5" cy="560.5" fill="#1b1f22" rx="72.5" ry="72.5" />
+    <path d="M 405 748C 421.103 734.118 440 743 440 743L 679 938L 277 939L 270 939L 264 938L 257 934C 257 934 253.413 931.649 252 930C 250.422 928.159 247 925 247 925C 247 925 243 920 242 918C 241 916 241 914 241 914C 241 914 240 911.5 240 909C 240 906.5 241 903 241 903C 241 903 243 900.5 244 898C 245 895.5 249 892 249 892L 308 836C 308 836 376 773 405 748 z" fill="#1b1f22" fill-rule="evenodd" />
+    <path d="M 756 658C 737 651 702 691 702 691L 458 938L 926 939L 933 939L 939 938L 946 934C 946 934 949.587 931.649 951 930C 952.578 928.159 956 925 956 925C 956 925 960 920 961 918C 962 916 962 914 962 914C 962 914 963 911.5 963 909C 963 906.5 963 902 963 902C 963 902 964 896.5 963 894C 962 891.5 963 871 963 871C 963 871 964 793 964 776C 964 772.5 965.453 762.75 964 758C 962.547 753.25 957.694 749.847 950 746C 942 742 911 729 909 728C 905 726 856 704 856 704C 856 704 791.928 671.237 756 658 z" fill="#1b1f22" fill-rule="evenodd" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="layer 5">
+    <text dominant-baseline="text-before-edge" fill="url(#G2)" font-family="Google Sans Medium" font-size="150" text-anchor="start" x="1162" y="754">Clipboard Upload Simplified</text>
+    <text dominant-baseline="text-before-edge" fill="url(#G2)" font-family="Google Sans Medium" font-size="310" font-weight="bold" text-anchor="start" x="1138" y="316">Copy-n-Paste</text>
+  </g>
+</svg>
