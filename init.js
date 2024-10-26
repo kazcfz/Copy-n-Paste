@@ -286,6 +286,9 @@ function createOverlay(event) {
           overlayFileInput.multiple = originalInput.multiple;
           overlayFileInput.webkitdirectory = originalInput.webkitdirectory;
 
+          if (overlayFileInput.multiple)
+            overlay.querySelector('#cnp-upload-text').textContent = "Upload Files";
+
           // Overlay handle file input
           overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
           overlayFileInput.oncancel = () => closeOverlay();
@@ -453,7 +456,7 @@ function createOverlay(event) {
 function noImage() {
   const CNP_notImage = document.createElement('span');
   CNP_notImage.id = 'cnp-not-image';
-  CNP_notImage.textContent = 'Screenshot / Drop an image';
+  CNP_notImage.textContent = 'Screenshot / Copy / Drop files';
 
   const overlay = document.querySelector('.cnp-overlay');
   const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
