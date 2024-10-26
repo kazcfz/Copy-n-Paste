@@ -14,8 +14,7 @@
       {
         "js": ["init.js", "content.js"],
         "all_frames": true,
-        "matches": ["<all_urls>"],
-        "world": "ISOLATED"
+        "matches": ["<all_urls>"]
       }
     ],
     "web_accessible_resources": [
