@@ -126,8 +126,6 @@ function afterDOMLoaded() {
               try {
                 node.contentDocument.head.appendChild(initJS);
                 node.contentDocument.head.appendChild(contentJS);
-                console.log(node)
-                console.log(node.contentDocument.head)
               } catch (error) {logging(error)}
             }
           
@@ -157,7 +155,6 @@ function afterDOMLoaded() {
       window.cnpMessageListener = true;
       // Execute paste events from top level since iframes can't
       if (event.data.Type == 'paste') {
-        console.log(document)
         if (!event.data.iframe)
           document.execCommand('paste');
         else

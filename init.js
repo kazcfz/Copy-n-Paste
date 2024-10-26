@@ -439,8 +439,6 @@ function createOverlay(event) {
           
           overlay.contentEditable = false;
 
-          console.log(document)
-
           // Trigger paste event for iframe
           if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
             window.top.postMessage({'Type': 'paste', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id')}, '*');
