@@ -1,8 +1,8 @@
 <p align="center"><img src="media_kit/banner.svg" alt="Copy-n-Paste: Clipboard Upload Simplified" width="580px"></p>
 <p align="center">
-    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/Google/Google/Chrome%20Web%20Store/SVG%20(with%20border).svg" alt="Get Copy-n-Paste for Chromium" height="75px"></a>
-    <a href="https://addons.mozilla.org/en-US/firefox/addon/copy-n-paste/"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/Google/Mozilla/Firefox/Get%20The%20Add-On.svg" alt="Get Copy-n-Paste for Firefox" height="75px"></a>
-    <a href="https://microsoftedge.microsoft.com/addons/detail/copynpaste-clipboard-u/akaimleajmhgmknjkodhggghkdbkjihb"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/Google/Microsoft/Get%20it%20from%20Microsoft.svg" alt="Get Copy-n-Paste for Microsoft Edge" height="75px"></a>
+    <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Google/Chrome%20Web%20Store/SVG%20(with%20border).svg" alt="Get Copy-n-Paste for Chromium" height="75px"></a>
+    <a href="https://addons.mozilla.org/en-US/firefox/addon/copy-n-paste/"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Mozilla/Firefox/Get%20The%20Add-On.svg" alt="Get Copy-n-Paste for Firefox" height="75px"></a>
+    <a href="https://microsoftedge.microsoft.com/addons/detail/copynpaste-clipboard-u/akaimleajmhgmknjkodhggghkdbkjihb"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Microsoft/Get%20it%20from%20Microsoft.svg" alt="Get Copy-n-Paste for Microsoft Edge" height="75px"></a>
 </p>
 <br><br><br><br>
 
