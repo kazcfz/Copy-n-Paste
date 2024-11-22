@@ -439,7 +439,6 @@ function createOverlay(event) {
           if (!isPasteListenerTriggered)
             window.top.postMessage({'Type': 'paste'}, '*');
           isPasteListenerTriggered = false;
-          
           overlay.contentEditable = false;
 
           // Trigger paste event for iframe

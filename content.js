@@ -61,7 +61,7 @@ function afterDOMLoaded() {
       element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
 
     // iframes
-    else if (element.matches('iframe')) {
+    else if (element.matches('iframe'))
       if (element.contentDocument) {
         const initJS = element.contentDocument.createElement('script');
         initJS.id = `CnP-init-iframe-${index}`;
@@ -75,7 +75,6 @@ function afterDOMLoaded() {
         contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
         element.contentDocument.head.appendChild(contentJS);
       }
-    }
   });
 
   // Find and prep customized input file elements, iframes
