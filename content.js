@@ -61,7 +61,7 @@ function afterDOMLoaded() {
       element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
 
     // iframes
-    else if (element.matches('iframe')) {
+    else if (element.matches('iframe'))
       if (element.contentDocument) {
         const initJS = element.contentDocument.createElement('script');
         initJS.id = `CnP-init-iframe-${index}`;
@@ -75,7 +75,6 @@ function afterDOMLoaded() {
         contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
         element.contentDocument.head.appendChild(contentJS);
       }
-    }
   });
 
   // Find and prep customized input file elements, iframes
@@ -126,8 +125,6 @@ function afterDOMLoaded() {
               try {
                 node.contentDocument.head.appendChild(initJS);
                 node.contentDocument.head.appendChild(contentJS);
-                console.log(node)
-                console.log(node.contentDocument.head)
               } catch (error) {logging(error)}
             }
           
@@ -157,7 +154,6 @@ function afterDOMLoaded() {
       window.cnpMessageListener = true;
       // Execute paste events from top level since iframes can't
       if (event.data.Type == 'paste') {
-        console.log(document)
         if (!event.data.iframe)
           document.execCommand('paste');
         else

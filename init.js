@@ -15,9 +15,9 @@ HTMLElement.prototype.click = function(...args) {
 // Detect and override input elements that uses .showPicker()
 var oriShowPicker = HTMLInputElement.prototype.showPicker;
 HTMLInputElement.prototype.showPicker = function() {
-  if (this.matches("input[type='file']")) {
+  if (this.matches("input[type='file']"))
     this.click();
-  } else
+  else
     return oriShowPicker.apply(this, arguments);
 };
 
@@ -67,7 +67,7 @@ async function ctrlV(event) {
             if (blob.name == 'image.png' || !blob.name)
               fileName = 'CnP_'+new Date().toLocaleString('en-GB', {hour12: false}).replace(/, /g, '_').replace(/[\/: ]/g, '')+'.'+blob.type.split('/').pop();
             reader.onload = () => {
-              const file = new File([blob], fileName, { type: blob.type });
+              const file = new File([blob], fileName, {type: blob.type, lastModified: blob.lastModified});
               fileList.items.add(file);
               resolve();
             };
@@ -286,6 +286,9 @@ function createOverlay(event) {
           overlayFileInput.multiple = originalInput.multiple;
           overlayFileInput.webkitdirectory = originalInput.webkitdirectory;
 
+          if (overlayFileInput.multiple)
+            overlay.querySelector('#cnp-upload-text').textContent = "Upload Files";
+
           // Overlay handle file input
           overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
           overlayFileInput.oncancel = () => closeOverlay();
@@ -403,7 +406,7 @@ function createOverlay(event) {
                       if (parseInt(badge.innerText) > 1)
                         badge.style.display = 'inline-block';
 
-                      fileList.items.add(new File([file], filename, {type: file.type}));
+                      fileList.items.add(new File([file], filename, {type: file.type, lastModified: file.lastModified}));
                       
                       if (isFirstFile) {
                         isFirstFile = false;
@@ -436,10 +439,7 @@ function createOverlay(event) {
           if (!isPasteListenerTriggered)
             window.top.postMessage({'Type': 'paste'}, '*');
           isPasteListenerTriggered = false;
-          
           overlay.contentEditable = false;
-
-          console.log(document)
 
           // Trigger paste event for iframe
           if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
@@ -455,7 +455,7 @@ function createOverlay(event) {
 function noImage() {
   const CNP_notImage = document.createElement('span');
   CNP_notImage.id = 'cnp-not-image';
-  CNP_notImage.textContent = 'Screenshot / Drop an image';
+  CNP_notImage.textContent = 'Screenshot / Copy / Drop files';
 
   const overlay = document.querySelector('.cnp-overlay');
   const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
