@@ -35,6 +35,7 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/9/98/Microsoft_Edge_logo_%282019%29.svg" alt="Edge" height="27px"></sub></sub> <span>Edge</span>  | **✓** |
 | <sub><sub><img src="https://brave.com/static-assets/images/brave-logo-sans-text.svg" alt="Brave" height="27px"></sub></sub> <span>Brave</span>  | **✓** |
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/e/e4/Vivaldi_web_browser_logo.svg" alt="Vivaldi" height="27px"></sub></sub> <span>Vivaldi</span>  | **✓** |
+| <sub><sub><img src="https://cdn.jsdelivr.net/gh/zen-browser/www@latest/public/logos/zen-black.svg" alt="Zen Browser" height="27px"></sub></sub> <span>Zen Browser</span>  | **✓** |
 | <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/4/49/Opera_2015_icon.svg" alt="Opera" height="27px"></sub></sub> <span>Opera</span>  | **✓*** |
 
 </td><td>
