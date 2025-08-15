@@ -262,6 +262,11 @@ function createOverlay(event) {
                         else
                             overlay.innerHTML = trustedTypes.createPolicy("forceInner", { createHTML: (to_escape) => to_escape }).createHTML(html);
 
+                        // Fix: prevent Firefox from scrolling to the overlay
+                        overlay.style.position = 'fixed';
+                        overlay.style.top = 0;
+                        overlay.style.left = 0;
+
                         document.body.appendChild(overlay);
 
                         // Position overlay to cursor coord
@@ -303,6 +308,7 @@ function createOverlay(event) {
 
                         // Overlay upload click listener
                         const uploadBtn = overlay.querySelector('#cnp-upload-btn');
+                        overlayFileInput.focus({ preventScroll: true });
                         uploadBtn.onclick = () => overlayFileInput.click();
 
                         // Close overlay when clicked outside
