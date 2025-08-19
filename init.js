@@ -262,11 +262,6 @@ function createOverlay(event) {
                         else
                             overlay.innerHTML = trustedTypes.createPolicy("forceInner", { createHTML: (to_escape) => to_escape }).createHTML(html);
 
-                        // Fix: prevent Firefox from scrolling to the overlay
-                        overlay.style.position = 'fixed';
-                        overlay.style.top = 0;
-                        overlay.style.left = 0;
-
                         document.body.appendChild(overlay);
 
                         // Position overlay to cursor coord
@@ -440,7 +435,7 @@ function createOverlay(event) {
 
                         // Trigger paste event
                         overlay.contentEditable = true;
-                        overlay.focus();
+                        overlay.focus({ preventScroll: true });
                         document.execCommand('paste');
                         if (!isPasteListenerTriggered)
                             window.top.postMessage({ 'Type': 'paste' }, '*');
