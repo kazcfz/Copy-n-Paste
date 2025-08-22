@@ -4,15 +4,26 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number for the release (e.g., 1.2.3)'
+        description: 'Version number (e.g., 1.2.3)'
         required: true
-      dry-run:
-        description: 'Set to true to skip publishing'
-        required: false
-        default: 'false'
+      create_release:
+        description: 'Create Git tag and GitHub Release?'
+        type: boolean
+        default: true
+      publish_chrome:
+        description: 'Publish to Chrome?'
+        type: boolean
+        default: false
+      publish_firefox:
+        description: 'Publish to Firefox?'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'  # Still supports pushing tags manually if you prefer
+
+permissions:
+  contents: write
 
 jobs:
   build-and-publish:
@@ -38,17 +49,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Using version: $VERSION"
 
-      # If triggered manually, create git tag and GitHub release
-      - name: Create tag and release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: Release v${{ steps.get_version.outputs.version }}
-          body: "Automated release for version v${{ steps.get_version.outputs.version }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       # Update manifest.json files with version
       - name: Set version in manifest.json files
         run: |
@@ -63,18 +63,18 @@ jobs:
 
       # Upload build artifacts (optional)
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: extension-builds
           path: dist/zips/*
 
       # If triggered manually, create git tag and GitHub release
       - name: Create tag and release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: softprops/action-gh-release@v1
+        if: ${{ github.event_name == 'push' || github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
-          name: Release v${{ steps.get_version.outputs.version }}
+          name: Copy-n-Paste v${{ steps.get_version.outputs.version }}
           body: |
             ## Download the latest release
             <p align="left">
@@ -90,23 +90,23 @@ jobs:
 
       # Publish to Chrome Web Store
       - name: Publish Chrome Extension
-        if: ${{ github.event.inputs.dry-run != 'true' }}
-        uses: Klemensas/chrome-extension-upload-action@v1
+        if: ${{ github.event_name == 'push' || github.event.inputs.publish_chrome == 'true' }}
+        uses: mnao305/chrome-extension-upload@v5.0.0
         with:
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           extension-id: bnmdedmhngbeofnafobjmcihealecgnf
-          zip-path: dist/zips/extension-chromium.zip
+          file-path: dist/zips/extension-chromium.zip
           publish: true
 
       # Publish to Firefox AMO
       - name: Publish Firefox Extension
-        if: ${{ github.event.inputs.dry-run != 'true' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.publish_firefox == 'true' }}
         uses: trmcnvn/firefox-addon@v1
         with:
           api-key: ${{ secrets.FIREFOX_JWT_ISSUER }}
           api-secret: ${{ secrets.FIREFOX_JWT_SECRET }}
-          addon-id: kazcfz@copy-n-paste
-          xpi-path: dist/zips/extension-firefox.zip
-          channel: listed
+          uuid: kazcfz@copy-n-paste
+          xpi: dist/zips/extension-firefox.zip
+          manifest: platform/firefox/manifest.json
