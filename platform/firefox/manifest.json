@@ -4,9 +4,9 @@
     "version": "1.5.10",
     "description": "Simplifies uploading copied screenshots, images, files from clipboard.",
     "icons": {
-        "16": "./icons/icon16.png",
-        "48": "./icons/icon48.png",
-        "128": "./icons/icon128.png"
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
     },
     "permissions": ["clipboardRead", "alarms"],
     "content_scripts": [
