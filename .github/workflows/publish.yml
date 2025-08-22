@@ -1,0 +1,112 @@
+name: Build & Publish Extensions
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number for the release (e.g., 1.2.3)'
+        required: true
+      dry-run:
+        description: 'Set to true to skip publishing'
+        required: false
+        default: 'false'
+  push:
+    tags:
+      - 'v*'  # Still supports pushing tags manually if you prefer
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - run: npm ci
+
+      # Determine version: use workflow input if manual dispatch, otherwise extract from tag
+      - name: Determine version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      # If triggered manually, create git tag and GitHub release
+      - name: Create tag and release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          body: "Automated release for version v${{ steps.get_version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Update manifest.json files with version
+      - name: Set version in manifest.json files
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          sudo apt-get update && sudo apt-get install -y jq
+          for target in chromium firefox; do
+            jq --arg v "$VERSION" '.version=$v' platform/$target/manifest.json > tmp && mv tmp platform/$target/manifest.json
+          done
+
+      # Build zips
+      - run: node build.js
+
+      # Upload build artifacts (optional)
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: extension-builds
+          path: dist/zips/*
+
+      # If triggered manually, create git tag and GitHub release
+      - name: Create tag and release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          body: |
+            ## Download the latest release
+            <p align="left">
+            <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Google/Chrome%20Web%20Store/SVG%20(with%20border).svg" alt="Get Copy-n-Paste for Chromium" height="60px"></a>
+            <a href="https://addons.mozilla.org/en-US/firefox/addon/copy-n-paste/"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Mozilla/Firefox/Get%20The%20Add-On.svg" alt="Get Copy-n-Paste for Firefox" height="60px"></a>
+            <a href="https://microsoftedge.microsoft.com/addons/detail/copynpaste-clipboard-u/akaimleajmhgmknjkodhggghkdbkjihb"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Microsoft/Get%20it%20from%20Microsoft.svg" alt="Get Copy-n-Paste for Microsoft Edge" height="60px"></a>
+            </p>
+            <br>
+
+            ## Fixes / changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish to Chrome Web Store
+      - name: Publish Chrome Extension
+        if: ${{ github.event.inputs.dry-run != 'true' }}
+        uses: Klemensas/chrome-extension-upload-action@v1
+        with:
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          extension-id: bnmdedmhngbeofnafobjmcihealecgnf
+          zip-path: dist/zips/extension-chromium.zip
+          publish: true
+
+      # Publish to Firefox AMO
+      - name: Publish Firefox Extension
+        if: ${{ github.event.inputs.dry-run != 'true' }}
+        uses: trmcnvn/firefox-addon@v1
+        with:
+          api-key: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          api-secret: ${{ secrets.FIREFOX_JWT_SECRET }}
+          addon-id: kazcfz@copy-n-paste
+          xpi-path: dist/zips/extension-firefox.zip
+          channel: listed
