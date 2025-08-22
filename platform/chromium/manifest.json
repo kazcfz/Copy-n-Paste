@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Copy-n-Paste: Clipboard Upload Simplified",
-    "version": "1.5.9",
+    "version": "1.5.10",
     "description": "Simplifies uploading copied screenshots, images, files from clipboard.",
     "action": {},
     "icons": {
@@ -9,7 +9,7 @@
         "48": "./icons/icon48.png",
         "128": "./icons/icon128.png"
     },
-    "permissions": ["clipboardRead"],
+    "permissions": ["clipboardRead", "alarms"],
     "content_scripts": [
       {
         "js": ["init.js", "content.js"],
@@ -17,6 +17,7 @@
         "matches": ["<all_urls>"]
       }
     ],
+    "background" : { "service_worker": "background.js" },
     "web_accessible_resources": [
       {
         "resources": ["overlay.html", "init.js", "content.js", "media/*"],
