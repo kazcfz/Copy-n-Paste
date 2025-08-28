@@ -1,7 +1,10 @@
 {
+    "browser_specific_settings": {
+      "gecko": { "id": "kazcfz@copy-n-paste" }
+    },
     "manifest_version": 2,
     "name": "Copy-n-Paste: Clipboard Upload Simplified",
-    "version": "1.5.10",
+    "version": "0.0.0",
     "description": "Simplifies uploading copied screenshots, images, files from clipboard.",
     "icons": {
         "16": "icons/icon16.png",

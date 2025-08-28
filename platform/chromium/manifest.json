@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Copy-n-Paste: Clipboard Upload Simplified",
-    "version": "1.5.10",
+    "version": "0.0.0",
     "description": "Simplifies uploading copied screenshots, images, files from clipboard.",
     "action": {},
     "icons": {
