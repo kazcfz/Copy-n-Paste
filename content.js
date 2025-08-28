@@ -11,34 +11,152 @@ else
 // Global variables
 var lastURL = location.href;
 
-// Inject init.js to the DOM
+// Safe Trusted Types helper: try to create and memoize a policy, but fall back to no-op shim
+function getTrustedPolicy(name, options) {
+    // Avoid calling trustedTypes.createPolicy to prevent triggering CSP refusal logs.
+    // Instead always return a safe shim that performs pass-through conversions.
+    return { createScriptURL: s => s, createHTML: s => s };
+}
+
+// Safe wrapper for chrome.runtime.getURL — avoid referencing chrome.runtime when not available
+function safeGetURL(path) {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+            return chrome.runtime.getURL(path);
+    } catch (e) { }
+    return path;
+}
+
+// Feature detection helpers
+function docRequiresTrustedHTML(targetDoc) {
+    try {
+        // Try a small parse; on some sites DOMParser throws when TrustedHTML is required
+        try {
+            (targetDoc || document).createElement('div');
+        } catch (e) { /* ignore */ }
+        try {
+            // Use the target document's DOMParser when same-origin; otherwise test top-level
+            const parser = new DOMParser();
+            parser.parseFromString('<div></div>', 'text/html');
+            return false;
+        } catch (err) {
+            if (err && err.message && err.message.includes('TrustedHTML'))
+                return true;
+            return false;
+        }
+    } catch (e) { return false }
+}
+
+function docAllowsBlobScripts(targetDoc) {
+    try {
+        // Try to read any meta CSP; if it mentions script-src without blob: then assume blob is blocked
+        const doc = targetDoc || document;
+        try {
+            const meta = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            if (meta && meta.content) {
+                const content = meta.content;
+                // if script-src contains blob: explicitly, allow; if it contains script-src but not blob:, assume blocked
+                const hasScriptSrc = /script-src/i.test(content);
+                const hasBlob = /\bblob:\b/.test(content);
+                if (hasScriptSrc && !hasBlob)
+                    return false;
+                return true;
+            }
+        } catch (e) { /* ignore */ }
+        // Unknown — default to allowing blob URLs since many sites permit it
+        return true;
+    } catch (e) { return true }
+}
+
+// Helper: fetch an extension script and inject into a target document using a blob URL
+function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
+    try {
+        // Decide injection strategy based on page features rather than hostname
+        const trustedHTMLRequired = docRequiresTrustedHTML(targetDoc);
+        const blobAllowed = docAllowsBlobScripts(targetDoc);
+        if (trustedHTMLRequired || !blobAllowed) {
+            // Pages that require TrustedHTML or explicitly block blob: should use extension URL instead
+            const s = targetDoc.createElement('script');
+            if (id) s.id = id;
+            if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+            try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { s.src = safeGetURL(scriptPath) }
+            targetDoc.head.appendChild(s);
+            return;
+        }
+
+        fetch(safeGetURL(scriptPath)).then(r => r.text()).then(code => {
+            try {
+                const s = targetDoc.createElement('script');
+                if (id) s.id = id;
+                if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+                const blob = new Blob([code], { type: 'text/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+                try { s.setAttribute('src', blobUrl); } catch (e) { s.src = blobUrl }
+                targetDoc.head.appendChild(s);
+            } catch (e) {
+                // fallback
+                const s = targetDoc.createElement('script');
+                if (id) s.id = id;
+                if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+                try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e2) { s.src = safeGetURL(scriptPath) }
+                targetDoc.head.appendChild(s);
+            }
+        }).catch(err => {
+            const s = targetDoc.createElement('script');
+            if (id) s.id = id;
+            if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+            try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { s.src = safeGetURL(scriptPath) }
+            targetDoc.head.appendChild(s);
+        });
+    } catch (e) {
+        try {
+            const s = targetDoc.createElement('script');
+            if (id) s.id = id;
+            if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+            try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e2) { s.src = safeGetURL(scriptPath) }
+            targetDoc.head.appendChild(s);
+        } catch (err) { logging(err) }
+    }
+}
+
+// Inject init.js to the DOM: use extension URL for Google Docs/Slides (their CSP blocks blob:),
+// otherwise use blob injection to avoid TrustedScriptURL enforcement on other pages.
 if (!document.head.querySelector('CnP-init')) {
     const initJS = document.createElement('script');
     initJS.id = `CnP-init`;
-    if (document.head.querySelector('CnP-init')) {
-        initJS.src = document.head.querySelector('CnP-init').getAttribute('src');
-        initJS.setAttribute('overlayhtml', document.head.querySelector('CnP-init').getAttribute('overlayhtml'));
-    }
-    else
-        try {
-            initJS.src = chrome.runtime.getURL('init.js');
-            initJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
-        }
-        catch {
-            if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                window.top.postMessage({ 'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `init.js` }, '*');
-            else
-                window.top.postMessage({ 'Type': 'getURL', 'Path': `init.js` }, '*');
+    initJS.setAttribute('overlayhtml', safeGetURL('overlay.html'));
 
-            window.onmessage = event => {
-                if (event.data.Type == 'getURL-response')
-                    if (isFirefox)
-                        initJS.src = event.data.URL;
-                    else
-                        initJS.src = trustedTypes.createPolicy("forceInner", { createScriptURL: (to_escape) => to_escape }).createScriptURL(event.data.URL);
-            }
+    const isGoogleDocs = (location.hostname || '').includes('docs.google') || (location.hostname || '').includes('slides.google');
+    if (isGoogleDocs) {
+        // Docs blocks blob:, but may allow extension's chrome-extension:// URL (depends on installed extension id)
+        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
+        document.head.appendChild(initJS);
+    } else {
+        // Try to fetch the extension script and inject via blob URL
+        try {
+            fetch(safeGetURL('init.js'))
+                .then(response => response.text())
+                .then(code => {
+                    try {
+                        const blob = new Blob([code], { type: 'text/javascript' });
+                        const blobUrl = URL.createObjectURL(blob);
+                        initJS.setAttribute('src', blobUrl);
+                    } catch (e) {
+                        // fallback to direct extension URL
+                        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
+                    }
+                    document.head.appendChild(initJS);
+                })
+                .catch(err => {
+                    // Fallback: append script with extension URL
+                    try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
+                    document.head.appendChild(initJS);
+                });
+        } catch (e) {
+            try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
+            document.head.appendChild(initJS);
         }
-    document.head.appendChild(initJS);
+    }
 }
 
 function afterDOMLoaded() {
@@ -63,17 +181,9 @@ function afterDOMLoaded() {
         // iframes
         else if (element.matches('iframe'))
             if (element.contentDocument) {
-                const initJS = element.contentDocument.createElement('script');
-                initJS.id = `CnP-init-iframe-${index}`;
-                initJS.src = chrome.runtime.getURL('init.js');
-                element.contentDocument.head.appendChild(initJS);
-
-                const contentJS = element.contentDocument.createElement('script');
                 element.classList.add(`CnP-iframe-${index}`);
-                contentJS.id = `CnP-iframe-${index}`;
-                contentJS.src = chrome.runtime.getURL('content.js');
-                contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
-                element.contentDocument.head.appendChild(contentJS);
+                fetchAndInjectScript(element.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
+                fetchAndInjectScript(element.contentDocument, 'content.js', `CnP-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
             }
     });
 
@@ -102,30 +212,10 @@ function afterDOMLoaded() {
                     // iframes
                     else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
                         if (node.contentDocument) {
-                            // Append init.js, content.js, overlay.html
-                            const initJS = node.contentDocument.createElement('script');
-                            const contentJS = node.contentDocument.createElement('script');
+                            // Inject scripts into dynamically added iframe using blob URLs
                             node.classList.add(`CnP-mutatedIframe-${index}`);
-                            contentJS.id = `CnP-mutatedIframe-${index}`;
-
-                            if (document.head.querySelector('script[id*="CnP-init-iframe"]'))
-                                initJS.src = document.head.querySelector('script[id*="CnP-init-iframe"]').getAttribute('src');
-                            else
-                                initJS.src = chrome.runtime.getURL('init.js');
-
-                            if (document.head.querySelector('script[overlayhtml]') !== null) {
-                                contentJS.src = document.head.querySelector('script[overlayhtml]').getAttribute('src');
-                                contentJS.setAttribute('overlayhtml', document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml'));
-                            }
-                            else {
-                                contentJS.src = chrome.runtime.getURL('content.js');
-                                contentJS.setAttribute('overlayhtml', chrome.runtime.getURL('overlay.html'));
-                            }
-
-                            try {
-                                node.contentDocument.head.appendChild(initJS);
-                                node.contentDocument.head.appendChild(contentJS);
-                            } catch (error) { logging(error) }
+                            fetchAndInjectScript(node.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
+                            fetchAndInjectScript(node.contentDocument, 'content.js', `CnP-mutatedIframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
                         }
 
                         // Checks if sub-nodes/child are input file elements
@@ -156,17 +246,31 @@ function afterDOMLoaded() {
             if (event.data.Type == 'paste') {
                 if (!event.data.iframe)
                     document.execCommand('paste');
-                else
+                else {
                     try {
-                        document.getElementsByClassName(event.data.iframe)[0].contentDocument.execCommand('paste');
+                        let el = null;
+                        // event.data.iframe may be an id or a class — try id first
+                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
+                        if (el && el.contentDocument && typeof el.contentDocument.execCommand === 'function')
+                            el.contentDocument.execCommand('paste');
+                        else
+                            logging('iframe for paste not available');
                     } catch (error) {
                         logging(error);
                         try { noImage() } catch (error) { logging(error) }
                     }
+                }
             } else if (event.data.Type == 'getURL')
-                if (event.data.iframe)
-                    document.getElementsByClassName(event.data.iframe)[0].contentWindow.postMessage({ 'Type': 'getURL-response', 'URL': chrome.runtime.getURL(event.data.Path) }, '*');
-                else
-                    window.top.postMessage({ 'Type': 'getURL-response', 'URL': chrome.runtime.getURL(event.data.Path) }, '*');
+                if (event.data.iframe) {
+                    try {
+                        let el = null;
+                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
+                        if (el && el.contentWindow && typeof el.contentWindow.postMessage === 'function')
+                            el.contentWindow.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
+                        else
+                            logging('iframe for getURL not available');
+                    } catch (error) { logging(error) }
+                } else
+                    window.top.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
         });
 }

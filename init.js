@@ -31,6 +31,55 @@ var reader = null; //Paste event listener's
 var isFirefox = typeof InstallTrigger !== 'undefined';
 var isChrome = !!window.chrome && (!!window.chrome.webstore || !!window.chrome.runtime);
 
+// Safe Trusted Types helper: try to create and memoize a policy, but fall back to no-op shim
+function getTrustedPolicy(name, options) {
+    // Avoid calling trustedTypes.createPolicy to prevent triggering CSP refusal logs.
+    // Instead always return a safe shim that performs pass-through conversions.
+    return { createScriptURL: s => s, createHTML: s => s };
+}
+
+// Safe wrapper for chrome.runtime.getURL — avoid referencing chrome.runtime when not available
+function safeGetURL(path) {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function')
+            return chrome.runtime.getURL(path);
+    } catch (e) { }
+    return path;
+}
+
+// Feature detection helpers (same logic as content.js)
+function docRequiresTrustedHTML() {
+    try {
+        try { document.createElement('div'); } catch (e) { }
+        try {
+            const parser = new DOMParser();
+            parser.parseFromString('<div></div>', 'text/html');
+            return false;
+        } catch (err) {
+            if (err && err.message && err.message.includes('TrustedHTML'))
+                return true;
+            return false;
+        }
+    } catch (e) { return false }
+}
+
+function docAllowsBlobScripts() {
+    try {
+        try {
+            const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            if (meta && meta.content) {
+                const content = meta.content;
+                const hasScriptSrc = /script-src/i.test(content);
+                const hasBlob = /\bblob:\b/.test(content);
+                if (hasScriptSrc && !hasBlob)
+                    return false;
+                return true;
+            }
+        } catch (e) { }
+        return true;
+    } catch (e) { return true }
+}
+
 // Capture cursor coords for overlay position
 if (!document.cnpCoordListener)
     document.addEventListener('mousemove', event => {
@@ -155,7 +204,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
         imagePreview.id = 'cnp-image-preview';
         imagePreview.style.height = '50%';
         try {
-            imagePreview.src = chrome.runtime.getURL(`media/${fileTypeIcon}.webp`);
+            imagePreview.src = safeGetURL(`media/${fileTypeIcon}.webp`);
         } catch {
             try {
                 if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
@@ -221,7 +270,7 @@ function createOverlay(event) {
             }
             else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
                 try {
-                    urlToFetch = chrome.runtime.getURL('overlay.html');
+                    urlToFetch = safeGetURL('overlay.html');
                     resolve(urlToFetch);
                 }
                 catch {
@@ -256,16 +305,91 @@ function createOverlay(event) {
                         if (document.querySelector('.cnp-overlay'))
                             return;
 
-                        // Checks browser type to either use trustedTypes or not (Google Slides requirement)
-                        if (isFirefox)
-                            overlay.innerHTML = html;
-                        else
-                            overlay.innerHTML = trustedTypes.createPolicy("forceInner", { createHTML: (to_escape) => to_escape }).createHTML(html);
+                        // Insert overlay HTML safely: prefer parsing and appending nodes (avoids innerHTML sinks),
+                        // fall back to TrustedTypes only if parsing doesn't find expected content.
+                        function insertOverlayHtml(overlayElem, htmlString) {
+                            try {
+                                let parsed;
+                                try {
+                                    parsed = new DOMParser().parseFromString(htmlString, 'text/html');
+                                } catch (parseErr) {
+                                    // Some hosts require TrustedHTML; DOMParser will throw. Treat as parse failure silently
+                                    // to avoid noisy console logs — fall back to TrustedTypes / innerHTML below.
+                                    parsed = null;
+                                    // Only log non-TrustedHTML parse errors
+                                    if (parseErr && !(parseErr.message && parseErr.message.includes('TrustedHTML')))
+                                        logging(parseErr);
+                                }
+                                // Prefer the main overlay content element from the parsed document, if parsing succeeded
+                                if (parsed) {
+                                    const content = parsed.querySelector('.cnp-overlay-content');
+                                    if (content) {
+                                        // Preserve the wrapper element so later queries for .cnp-overlay-content work
+                                        // Also copy any <style> or <link rel="stylesheet"> into the top-level document head
+                                        const styles = parsed.querySelectorAll('style, link[rel="stylesheet"]');
+                                        styles.forEach(s => {
+                                            try {
+                                                document.head.appendChild(s.cloneNode(true));
+                                            } catch (e) { logging(e) }
+                                        });
+
+                                        overlayElem.appendChild(content.cloneNode(true));
+                                        return true;
+                                    }
+
+                                    const sourceContainer = parsed.body;
+                                    if (sourceContainer) {
+                                        // No wrapper found; append body children only
+                                        Array.from(sourceContainer.children).forEach(child => overlayElem.appendChild(child.cloneNode(true)));
+                                        return true;
+                                    }
+                                }
+                            } catch (e) { logging(e) }
+
+                            // If parsing didn't work or didn't contain expected content, try TrustedTypes only on
+                            // Google Docs / Slides (they require TrustedHTML). This avoids triggering CSP refusal
+                            // logs on other sites like LinkedIn.
+                            try {
+                                const trustedHTMLNeeded = docRequiresTrustedHTML();
+                                const blobAllowed = docAllowsBlobScripts();
+                                if (!isFirefox && trustedHTMLNeeded && window.trustedTypes && typeof trustedTypes.createPolicy === 'function') {
+                                    try {
+                                        const policy = trustedTypes.createPolicy("forceInner", { createHTML: (to_escape) => to_escape });
+                                        overlayElem.innerHTML = policy.createHTML(htmlString);
+                                        return true;
+                                    } catch (e) { logging(e) }
+                                }
+
+                                // Otherwise use safe shim (no-op) so we don't attempt to create policies on pages that block them
+                                if (!isFirefox) {
+                                    const trusted = getTrustedPolicy("forceInner", { createHTML: (to_escape) => to_escape }).createHTML(htmlString);
+                                    overlayElem.innerHTML = trusted;
+                                    return true;
+                                }
+                            } catch (e) { logging(e) }
+
+                            // Last resort: raw assignment (may still be blocked by CSP)
+                            try { overlayElem.innerHTML = htmlString; return true } catch (e) { logging(e); return false }
+                        }
+
+                        insertOverlayHtml(overlay, html);
 
                         document.body.appendChild(overlay);
+                        // Ensure overlay floats above page content even if page CSS wasn't copied
+                        try {
+                            overlay.style.position = overlay.style.position || 'fixed';
+                            overlay.style.left = overlay.style.left || '0px';
+                            overlay.style.top = overlay.style.top || '0px';
+                            overlay.style.zIndex = overlay.style.zIndex || '2147483647';
+                        } catch (e) { logging(e) }
 
                         // Position overlay to cursor coord
                         const overlayContent = overlay.querySelector('.cnp-overlay-content');
+                        if (!overlayContent) {
+                            logging('overlay content missing after insertion');
+                            return;
+                        }
+
                         let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
                         let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
 
