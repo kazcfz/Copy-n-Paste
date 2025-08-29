@@ -377,7 +377,6 @@ function createOverlay(event) {
                         document.body.appendChild(overlay);
                         // Ensure overlay floats above page content even if page CSS wasn't copied
                         try {
-                            overlay.style.position = overlay.style.position || 'absolute';
                             overlay.style.left = overlay.style.left || '0px';
                             overlay.style.top = overlay.style.top || '0px';
                             overlay.style.zIndex = overlay.style.zIndex || '2147483647';
