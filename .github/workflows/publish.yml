@@ -85,6 +85,9 @@ jobs:
             <br>
 
             ## Fixes / changes
+          files: |
+            dist/zips/extension-chromium.zip
+            dist/zips/extension-firefox.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
