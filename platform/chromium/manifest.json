@@ -9,7 +9,7 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "permissions": ["clipboardRead", "alarms"],
+    "permissions": ["clipboardRead", "alarms", "scripting"],
     "content_scripts": [
       {
         "js": ["init.js", "content.js"],
@@ -18,6 +18,7 @@
       }
     ],
     "background" : { "service_worker": "background.js" },
+    "host_permissions": ["<all_urls>"],
     "web_accessible_resources": [
       {
         "resources": ["overlay.html", "init.js", "content.js", "media/*"],

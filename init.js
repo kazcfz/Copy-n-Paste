@@ -104,7 +104,7 @@ async function ctrlV(event) {
         if (ctrlVdata && ctrlVdata.files) {
             const fileList = new DataTransfer();
             // Include previously selected files for multi-file
-            [...originalInput.files].forEach(file => fileList.items.add(file));
+            // [...originalInput.files].forEach(file => fileList.items.add(file));
 
             // Append pasted files
             const readPromise = [...ctrlVdata.files]
@@ -418,7 +418,7 @@ function createOverlay(event) {
                         overlayFileInput.onchange = event => {
                             const fileList = new DataTransfer();
                             // Reattach previous files and append new ones
-                            [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
+                            // [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
                             originalInput.files = fileList.files;
                             triggerChangeEvent(originalInput);
                             closeOverlay();
@@ -460,7 +460,7 @@ function createOverlay(event) {
                             const fileList = new DataTransfer();
                             // Reattach previous files and append new ones
                             const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
-                            [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
+                            // [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
                             originalInput.files = fileList.files;
                             triggerChangeEvent(originalInput);
                             closeOverlay();
@@ -506,7 +506,7 @@ function createOverlay(event) {
 
                                     // Reattach previous files for multi-file (continues in imagePreviewContainer.onclick below)
                                     const fileList = new DataTransfer();
-                                    [...originalInput.files].forEach(file => fileList.items.add(file));
+                                    // [...originalInput.files].forEach(file => fileList.items.add(file));
 
                                     // Array of promises to process each file
                                     const excludedFolders = [...dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
