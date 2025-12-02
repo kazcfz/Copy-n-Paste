@@ -248,6 +248,18 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
 
 // When prepped input elements are clicked
 function createOverlay(event) {
+    // Check if overlay is already visible for this input
+    const existingOverlay = document.querySelector('.cnp-overlay');
+
+    // If overlay exists, this is a second click - bypass extension and allow native behavior
+    if (existingOverlay) {
+        // Remove the overlay
+        closeOverlay();
+        // Don't prevent default - let the native file picker open
+        return;
+    }
+
+    // First click - prevent default and show overlay
     event.preventDefault();
     originalInput = event.target;
 
