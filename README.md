@@ -1,3 +1,7 @@
+> [!CAUTION]
+> Fixing security vulnerabilities (see [issue #39](https://github.com/kazcfz/Copy-n-Paste/issues/39)). Use at your own risk.
+
+<br><br>
 <p align="center"><img src="media_kit/banner.svg" alt="Copy-n-Paste: Clipboard Upload Simplified" width="580px"></p>
 <p align="center">
     <a href="https://chromewebstore.google.com/detail/bnmdedmhngbeofnafobjmcihealecgnf"><img src="https://raw.githubusercontent.com/kazcfz/Browser-Extension-Promo-Badges/refs/heads/main/Google/Chrome%20Web%20Store/SVG%20(with%20border).svg" alt="Get Copy-n-Paste for Chromium" height="75px"></a>
