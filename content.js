@@ -168,6 +168,57 @@ function afterDOMLoaded() {
                 setupcreateOverlay(event.target);
         }, true);
 
+    window.addEventListener("overlay-request", e => {
+        const { tempAttr, token } = e.detail || {};
+        if (!tempAttr || !token) return;
+
+        const sel = `[${tempAttr}="${token}"]`;
+        const input = document.querySelector(sel);
+        if (!input) return;
+
+        // attach overlay
+        if (typeof setupcreateOverlay === "function") {
+            setupcreateOverlay(input);
+        }
+
+        // run createOverlay() without triggering the native picker
+        const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+        input.dispatchEvent(ev);
+
+        input.removeAttribute(tempAttr);
+    });
+
+
+
+    // Patch showOpenFilePicker
+    if (window.showOpenFilePicker) {
+        const origShow = window.showOpenFilePicker;
+        window.showOpenFilePicker = async function (...args) {
+            // your overlay logic here
+            console.log("Intercepted showOpenFilePicker", args);
+            return origShow.apply(this, args);
+        };
+    }
+
+    // Patch showSaveFilePicker
+    if (window.showSaveFilePicker) {
+        const origSave = window.showSaveFilePicker;
+        window.showSaveFilePicker = async function (...args) {
+            console.log("Intercepted showSaveFilePicker", args);
+            return origSave.apply(this, args);
+        };
+    }
+
+    // Patch showDirectoryPicker
+    if (window.showDirectoryPicker) {
+        const origDir = window.showDirectoryPicker;
+        window.showDirectoryPicker = async function (...args) {
+            console.log("Intercepted showDirectoryPicker", args);
+            return origDir.apply(this, args);
+        };
+    }
+
+
     // Run through DOM to detect:
     document.querySelectorAll('*').forEach((element, index) => {
         // Raw input file elements
