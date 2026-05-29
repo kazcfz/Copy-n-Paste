@@ -67,6 +67,31 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 4. Select the extracted extension folder
 <br><br>
 
+## Testing
+Run local extension smoke tests:
+
+```sh
+npm run build
+npm run test:smoke
+```
+
+Run authenticated real-site checks (Example for Google Contacts, LinkedIn):
+
+```sh
+npm run build
+npm run diagnose:sites -- contacts linkedin
+npm run test:sites
+```
+
+The real-site tests reuse `playwright-profiles/real-sites`. Log in manually through `diagnose:sites` first, then keep `CNP_BROWSER_CHANNEL` empty when running Chromium extension diagnostics/tests so the unpacked extension can load.
+
+To run one real-site target:
+
+```powershell
+$env:CNP_SITE_TARGETS='linkedin'; npm run test:sites; Remove-Item Env:CNP_SITE_TARGETS -ErrorAction SilentlyContinue
+```
+<br><br>
+
 ## Bugs and Feature requests
 Please first check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
 If it's new, please [create a new issue](https://github.com/kazcfz/Paste-Image-Uploader/issues/new/choose).

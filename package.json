@@ -1,5 +1,14 @@
 {
+  "scripts": {
+    "build": "node build.js",
+    "diagnose:sites": "node scripts/diagnose-real-sites.js",
+    "test:sites": "playwright test tests/real-sites.spec.js --reporter=line",
+    "test:smoke": "playwright test tests/extension-smoke.spec.js --reporter=line"
+  },
   "dependencies": {
     "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }
