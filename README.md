@@ -68,28 +68,7 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 <br><br>
 
 ## Testing
-Run local extension smoke tests:
-
-```sh
-npm run build
-npm run test:smoke
-```
-
-Run authenticated real-site checks (Example for Google Contacts, LinkedIn):
-
-```sh
-npm run build
-npm run diagnose:sites -- contacts linkedin
-npm run test:sites
-```
-
-The real-site tests reuse `playwright-profiles/real-sites`. Log in manually through `diagnose:sites` first, then keep `CNP_BROWSER_CHANNEL` empty when running Chromium extension diagnostics/tests so the unpacked extension can load.
-
-To run one real-site target:
-
-```powershell
-$env:CNP_SITE_TARGETS='linkedin'; npm run test:sites; Remove-Item Env:CNP_SITE_TARGETS -ErrorAction SilentlyContinue
-```
+Testing instructions for local smoke checks, authenticated real-site validation, and manual diagnostics are in [TESTING.md](TESTING.md).
 <br><br>
 
 ## Bugs and Feature requests
