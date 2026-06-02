@@ -9,27 +9,7 @@ try {
 } catch (e) { }
 
 var isPageWorld = !(typeof chrome !== 'undefined' && chrome.runtime);
-var cnpNativeFunctionStrings = window.cnpNativeFunctionStrings || new WeakMap();
-window.cnpNativeFunctionStrings = cnpNativeFunctionStrings;
-var cnpOriginalFunctionToString = window.cnpOriginalFunctionToString || Function.prototype.toString;
-window.cnpOriginalFunctionToString = cnpOriginalFunctionToString;
-
-if (!Function.prototype.cnpMirrorsNativeFunctions) {
-    const mirroredFunctionToString = {
-        toString() {
-            if (cnpNativeFunctionStrings.has(this))
-                return cnpNativeFunctionStrings.get(this);
-
-            return cnpOriginalFunctionToString.call(this);
-        }
-    }.toString;
-    cnpNativeFunctionStrings.set(mirroredFunctionToString, cnpOriginalFunctionToString.call(cnpOriginalFunctionToString));
-    Function.prototype.toString = mirrorNativeFunction(mirroredFunctionToString, cnpOriginalFunctionToString);
-    Object.defineProperty(Function.prototype, 'cnpMirrorsNativeFunctions', {
-        value: true,
-        configurable: true
-    });
-}
+var cnpOriginalFunctionToString = Function.prototype.toString;
 
 function mirrorNativeFunction(wrapper, original) {
     try {
@@ -41,7 +21,10 @@ function mirrorNativeFunction(wrapper, original) {
             value: original.length,
             configurable: true
         });
-        cnpNativeFunctionStrings.set(wrapper, cnpOriginalFunctionToString.call(original));
+        Object.defineProperty(wrapper, 'toString', {
+            value: () => cnpOriginalFunctionToString.call(original),
+            configurable: true
+        });
     } catch (e) { }
     return wrapper;
 }
@@ -127,6 +110,96 @@ function isCnPElement(element) {
     return !!(element && element.closest && element.closest('.cnp-overlay, .cnp-overlay-content'));
 }
 
+function uploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.id,
+        element.getAttribute('class'),
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function ignoredUploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function isIgnoredUploadSurface(element) {
+    return /\bmeta\s+ai\s+business\s+assistant\b|\bmeta\s+ai\b/i.test(ignoredUploadSurfaceText(element));
+}
+
+function stopHostPagePropagation(event) {
+    event.stopPropagation();
+}
+
+function eventStartedInCnPElement(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+    return path.some(node => isCnPElement(node));
+}
+
+function stopCnPOverlayHostEvent(event) {
+    if (!eventStartedInCnPElement(event))
+        return;
+
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function')
+        event.stopImmediatePropagation();
+}
+
+function eventStartedInCnPUploadActivationElement(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+    return path.some(node => node && node.id && (node.id === 'cnp-overlay-file-input' || node.id === 'cnp-upload-btn'));
+}
+
+function stopCnPUploadActivationHostEvent(event) {
+    if (!eventStartedInCnPUploadActivationElement(event))
+        return;
+
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function')
+        event.stopImmediatePropagation();
+}
+
+function containCnPOverlayEvents(overlay) {
+    if (!overlay || !overlay.matches || !overlay.matches('.cnp-overlay') || overlay.dataset.cnpHostEventContainment)
+        return;
+
+    overlay.dataset.cnpHostEventContainment = 'true';
+    ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(type => {
+        overlay.addEventListener(type, stopCnPOverlayHostEvent);
+    });
+}
+
+function installCnPOverlayEventContainment() {
+    document.querySelectorAll('.cnp-overlay').forEach(containCnPOverlayEvents);
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                containCnPOverlayEvents(node);
+                if (node.querySelectorAll)
+                    node.querySelectorAll('.cnp-overlay').forEach(containCnPOverlayEvents);
+            });
+        });
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+}
+
 function dispatchFilesToDropTarget(target, files) {
     const dataTransfer = new DataTransfer();
     [...files].forEach(file => dataTransfer.items.add(file));
@@ -148,6 +221,10 @@ function filesToFileList(files) {
 
 var pendingPickerlessFiles = null;
 var pendingPickerlessFallback = null;
+var pickerlessNativeBypassUntil = 0;
+var suppressPickerlessFileActivationUntil = 0;
+var pickerlessProxyTargets = new WeakMap();
+var pickerlessPreparedInputs = new WeakMap();
 
 function clearPendingPickerlessFiles() {
     if (pendingPickerlessFallback)
@@ -157,14 +234,201 @@ function clearPendingPickerlessFiles() {
     pendingPickerlessFiles = null;
 }
 
+function markPickerlessHandoff() {
+    try {
+        document.documentElement.dataset.cnpPickerlessHandoff = String(Date.now());
+    } catch (e) { }
+}
+
 function fulfillPendingPickerlessInput(input) {
     if (!pendingPickerlessFiles || !input || input.type !== 'file')
         return false;
 
     const files = pendingPickerlessFiles;
+    const prepared = pickerlessPreparedInputs.has(input);
+    const disabled = input.disabled;
     clearPendingPickerlessFiles();
     input.files = filesToFileList(input.multiple ? files : files.slice(0, 1));
+    try {
+        input.disabled = true;
+    } catch (e) { }
     triggerChangeEvent(input);
+    setTimeout(() => {
+        if (prepared)
+            restorePreparedPickerlessInput(input);
+        else {
+            try {
+                input.disabled = disabled;
+            } catch (e) { }
+        }
+    }, 0);
+    return true;
+}
+
+function restoreOwnProperty(element, name, hadOwnProperty, value) {
+    try {
+        if (hadOwnProperty)
+            Object.defineProperty(element, name, { value, configurable: true, writable: true });
+        else
+            delete element[name];
+    } catch (e) { }
+}
+
+function restorePreparedPickerlessInput(input) {
+    const state = pickerlessPreparedInputs.get(input);
+    if (!state)
+        return;
+
+    pickerlessPreparedInputs.delete(input);
+    try {
+        input.disabled = state.disabled;
+    } catch (e) { }
+    restoreOwnProperty(input, 'click', state.hadOwnClick, state.click);
+    restoreOwnProperty(input, 'showPicker', state.hadOwnShowPicker, state.showPicker);
+}
+
+function preparePendingPickerlessInput(input) {
+    if (!pendingPickerlessFiles || !isCnPFileInput(input) || pickerlessPreparedInputs.has(input))
+        return false;
+
+    const state = {
+        disabled: input.disabled,
+        hadOwnClick: Object.prototype.hasOwnProperty.call(input, 'click'),
+        click: input.click,
+        hadOwnShowPicker: Object.prototype.hasOwnProperty.call(input, 'showPicker'),
+        showPicker: input.showPicker
+    };
+    pickerlessPreparedInputs.set(input, state);
+
+    try {
+        input.disabled = true;
+    } catch (e) { }
+    try {
+        Object.defineProperty(input, 'click', {
+            value: function (...args) {
+                if (fulfillPendingPickerlessInput(input))
+                    return;
+
+                return typeof state.click === 'function' ? state.click.apply(this, args) : undefined;
+            },
+            configurable: true,
+            writable: true
+        });
+    } catch (e) { }
+    try {
+        Object.defineProperty(input, 'showPicker', {
+            value: function (...args) {
+                if (fulfillPendingPickerlessInput(input))
+                    return;
+
+                return typeof state.showPicker === 'function' ? state.showPicker.apply(this, args) : undefined;
+            },
+            configurable: true,
+            writable: true
+        });
+    } catch (e) { }
+    return true;
+}
+
+function fulfillPendingPickerlessInputsFrom(root) {
+    if (!pendingPickerlessFiles || !root)
+        return false;
+
+    if (isCnPFileInput(root))
+        return fulfillPendingPickerlessInput(root);
+
+    if (!root.querySelectorAll)
+        return false;
+
+    const input = [...root.querySelectorAll('input[type="file"]')].find(candidate => isCnPFileInput(candidate));
+    return !!(input && fulfillPendingPickerlessInput(input));
+}
+
+function installPendingPickerlessInputObserver() {
+    if (document.cnpPendingPickerlessInputObserver)
+        return;
+
+    document.cnpPendingPickerlessInputObserver = true;
+    const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+            if (!pendingPickerlessFiles)
+                return;
+
+            if (mutation.type === 'attributes' && fulfillPendingPickerlessInputsFrom(mutation.target))
+                return;
+
+            for (const node of mutation.addedNodes) {
+                if (fulfillPendingPickerlessInputsFrom(node))
+                    return;
+            }
+        }
+    });
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['type']
+    });
+}
+
+function installPendingPickerlessCreationHooks() {
+    if (document.cnpPendingPickerlessCreationHooks)
+        return;
+
+    document.cnpPendingPickerlessCreationHooks = true;
+    const typeDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'type');
+    if (typeDescriptor && typeDescriptor.configurable && typeDescriptor.get && typeDescriptor.set) {
+        try {
+            Object.defineProperty(HTMLInputElement.prototype, 'type', {
+                configurable: true,
+                enumerable: typeDescriptor.enumerable,
+                get() {
+                    return typeDescriptor.get.call(this);
+                },
+                set(value) {
+                    typeDescriptor.set.call(this, value);
+                    if (String(value).toLowerCase() === 'file')
+                        preparePendingPickerlessInput(this);
+                }
+            });
+        } catch (e) { }
+    }
+
+    const originalSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = mirrorNativeFunction(function setAttribute(...args) {
+        const result = originalSetAttribute.apply(this, args);
+        if (this instanceof HTMLInputElement && String(args[0]).toLowerCase() === 'type' && String(args[1]).toLowerCase() === 'file')
+            preparePendingPickerlessInput(this);
+        return result;
+    }, originalSetAttribute);
+}
+
+function markSuppressNextFileActivation(input) {
+    suppressPickerlessFileActivationUntil = Date.now() + 1500;
+    try {
+        document.documentElement.dataset.cnpSuppressFileActivation = String(Date.now());
+    } catch (e) { }
+    if (input && input.dataset)
+        input.dataset.cnpSuppressNextFileActivation = String(Date.now());
+}
+
+function shouldSuppressPickerlessFileActivation(input) {
+    if (Date.now() < suppressPickerlessFileActivationUntil)
+        return true;
+
+    return !!(input && input.dataset && Date.now() - Number(input.dataset.cnpSuppressNextFileActivation || 0) < 1500);
+}
+
+function stopNativePickerBypassEvent(event) {
+    event.stopPropagation();
+}
+
+function shouldBypassCnPForNativePicker(input) {
+    if (!input || input.type !== 'file' || Date.now() > pickerlessNativeBypassUntil)
+        return false;
+
+    input.dataset.cnpNativePickerBypass = String(Date.now());
+    input.addEventListener('click', stopNativePickerBypassEvent, { once: true });
     return true;
 }
 
@@ -173,6 +437,7 @@ function replayPickerlessUpload(control, dropTarget, files) {
         return false;
 
     pendingPickerlessFiles = files;
+    markPickerlessHandoff();
     pendingPickerlessFallback = setTimeout(() => {
         if (!pendingPickerlessFiles)
             return;
@@ -205,16 +470,109 @@ function findDropTarget(control) {
     return control.closest('[role="dialog"]') || document.body;
 }
 
-function isPickerlessUploadButton(element) {
-    if (!element || !element.matches || !visibleElement(element) || isCnPElement(element))
+function uploadControlText(element) {
+    return [
+        element.id,
+        element.getAttribute('class'),
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.innerText || element.textContent || ''
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function uploadControlUserText(element) {
+    return [
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.innerText || element.textContent || ''
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function uploadAcceptFromControl(control) {
+    const text = uploadControlText(control);
+    const acceptsImage = /\b(image|photo|picture)\b/i.test(text);
+    const acceptsVideo = /\b(video)\b/i.test(text);
+
+    if (acceptsImage && acceptsVideo)
+        return 'image/*,video/*';
+    if (acceptsImage)
+        return 'image/*';
+    if (acceptsVideo)
+        return 'video/*';
+
+    return /\b(photo|picture|image)\b/i.test(document.body.innerText || '') ? 'image/*' : '';
+}
+
+function uploadMultipleFromControl(control) {
+    return /\b(files|images|photos|pictures|videos|media)\b/i.test(uploadControlText(control));
+}
+
+function hasUploadIntent(text) {
+    return /\b(upload|attach|browse|choose|select)\b/i.test(text)
+        || (/\badd\b/i.test(text) && hasUploadObject(text));
+}
+
+function hasUploadObject(text) {
+    return /\b(file|files|image|images|photo|photos|picture|pictures|video|videos|media)\b/i.test(text);
+}
+
+function hasLocalUploadSource(text) {
+    return /\b(computer|desktop|device|local|disk|drive|folder|gallery|library)\b/i.test(text);
+}
+
+function hasNonUploadIntent(text) {
+    return /\b(display mode|saved posts?|save post|bookmark|reload|dismiss|close|camera|take a picture)\b/i.test(text);
+}
+
+function isMenuTrigger(element) {
+    if (!element || !element.getAttribute)
         return false;
-    if (!element.matches('button, a, label, [role="button"], .media-editor-file-selector__upload-media-button'))
+    if (element.matches && element.matches('[role="menuitem"], [role="menuitemradio"], [role="option"]'))
+        return false;
+
+    const hasPopup = element.getAttribute('aria-haspopup');
+    if (hasPopup && hasPopup !== 'false')
+        return true;
+
+    if (element.hasAttribute('aria-expanded'))
+        return true;
+
+    return /\b(dropdown|menu|caret|chevron)\b/i.test(uploadControlUserText(element));
+}
+
+function isLikelyPickerlessUploadText(text, negativeText = text) {
+    if (!hasUploadIntent(text) || hasNonUploadIntent(negativeText || text))
+        return false;
+
+    return hasUploadObject(text) || hasLocalUploadSource(text);
+}
+
+function shouldUseNativePickerlessUpload(control) {
+    return false;
+}
+
+function shouldAllowNativeUploadActivation(control) {
+    return false;
+}
+
+function isPickerlessUploadButton(element) {
+    if (!element || !element.matches || !visibleElement(element) || isCnPElement(element) || isIgnoredUploadSurface(element))
+        return false;
+    if (!element.matches('button, a, label, input[type="button"], input[type="submit"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], .media-editor-file-selector__upload-media-button'))
         return false;
     if (element.matches('[role="dialog"], [role="tab"], [data-test-modal]'))
         return false;
+    if (isMenuTrigger(element))
+        return false;
 
-    const text = `${element.getAttribute('aria-label') || ''} ${element.innerText || element.textContent || ''}`.trim();
-    return /\b(upload from computer|choose file|select file|browse files?)\b/i.test(text);
+    const text = uploadControlText(element);
+    return isLikelyPickerlessUploadText(text, uploadControlUserText(element));
 }
 
 function findPickerlessUploadControl(event) {
@@ -233,17 +591,39 @@ function openOverlayForDropUpload(control) {
     const dropTarget = findDropTarget(control);
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = /\b(photo|picture|image)\b/i.test(document.body.innerText || '') ? 'image/*' : '';
+    input.accept = uploadAcceptFromControl(control);
+    input.multiple = uploadMultipleFromControl(control);
     input.dataset.cnpPickerProxy = 'true';
+    input.dataset.cnpPickerProxyNative = shouldUseNativePickerlessUpload(control) ? 'true' : 'false';
     input.style.display = 'none';
+    pickerlessProxyTargets.set(input, { control, dropTarget });
 
     input.addEventListener('change', () => {
         const files = [...input.files];
+        pickerlessProxyTargets.delete(input);
         input.remove();
         if (files.length > 0)
             replayPickerlessUpload(control, dropTarget, files);
     }, { once: true });
-    input.addEventListener('cnp-overlay-cancelled', () => input.remove(), { once: true });
+    input.addEventListener('cnp-overlay-cancelled', () => {
+        pickerlessProxyTargets.delete(input);
+        input.remove();
+    }, { once: true });
+
+    input.addEventListener('cnp-picker-proxy-native-upload', event => {
+        const target = pickerlessProxyTargets.get(input);
+        if (!target || input.dataset.cnpPickerProxyNative !== 'true')
+            return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function')
+            event.stopImmediatePropagation();
+
+        input.dataset.cnpNativeUploadStarted = String(Date.now());
+        pickerlessNativeBypassUntil = Date.now() + 1500;
+        target.control.click();
+    });
 
     (document.body || document.documentElement).appendChild(input);
     if (!requestIsolatedOverlayForFileInput(input)) {
@@ -292,11 +672,35 @@ function openOverlayForFilePicker(options, fallback) {
 }
 
 function preventNativeFileActivation(event) {
-    if (!isPageWorld || !event.isTrusted)
+    if (!isPageWorld)
         return;
 
     const fileInput = findActivatedFileInput(event);
-    if (!fileInput || !requestIsolatedOverlayForFileInput(fileInput))
+    if (!fileInput)
+        return;
+    if (isIgnoredUploadSurface(fileInput))
+        return;
+
+    if (!event.isTrusted && shouldSuppressPickerlessFileActivation(fileInput)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function')
+            event.stopImmediatePropagation();
+        return;
+    }
+
+    if (pendingPickerlessFiles && fulfillPendingPickerlessInput(fileInput)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function')
+            event.stopImmediatePropagation();
+        return;
+    }
+
+    if (!event.isTrusted && navigator.userActivation && !navigator.userActivation.isActive)
+        return;
+
+    if (!requestIsolatedOverlayForFileInput(fileInput))
         return;
 
     event.preventDefault();
@@ -310,6 +714,9 @@ function preventPickerlessUploadActivation(event) {
         return;
 
     const control = findPickerlessUploadControl(event);
+    if (control && shouldAllowNativeUploadActivation(control))
+        return;
+
     if (!control || !openOverlayForDropUpload(control))
         return;
 
@@ -323,6 +730,14 @@ if (isPageWorld && !document.cnpPageFileActivationListener) {
     document.cnpPageFileActivationListener = true;
     document.addEventListener('click', preventNativeFileActivation, true);
     document.addEventListener('click', preventPickerlessUploadActivation, true);
+    document.addEventListener('cnp-overlay-created', event => containCnPOverlayEvents(event.target), true);
+    ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(type => {
+        document.addEventListener(type, stopCnPOverlayHostEvent);
+        window.addEventListener(type, stopCnPUploadActivationHostEvent, true);
+    });
+    installPendingPickerlessCreationHooks();
+    installPendingPickerlessInputObserver();
+    installCnPOverlayEventContainment();
 }
 
 if (isPageWorld && typeof window.showOpenFilePicker === 'function' && !window.cnpShowOpenFilePicker) {
@@ -350,7 +765,13 @@ HTMLElement.prototype.click = mirrorNativeFunction({
     click(...args) {
         if (isCnPFileInput(this)) {
             if (isPageWorld) {
+                if (shouldBypassCnPForNativePicker(this))
+                    return oriClick.apply(this, args);
+
                 if (fulfillPendingPickerlessInput(this))
+                    return;
+
+                if (shouldSuppressPickerlessFileActivation(this))
                     return;
 
                 if (requestIsolatedOverlayForFileInput(this))
@@ -371,7 +792,17 @@ HTMLInputElement.prototype.click = mirrorNativeFunction({
     click(...args) {
         if (isCnPFileInput(this)) {
             if (isPageWorld) {
+                if (shouldBypassCnPForNativePicker(this)) {
+                    if (typeof oriInputClick === 'function')
+                        return oriInputClick.apply(this, args);
+
+                    return oriClick.apply(this, args);
+                }
+
                 if (fulfillPendingPickerlessInput(this))
+                    return;
+
+                if (shouldSuppressPickerlessFileActivation(this))
                     return;
 
                 if (requestIsolatedOverlayForFileInput(this))
@@ -398,7 +829,17 @@ HTMLInputElement.prototype.showPicker = mirrorNativeFunction({
     showPicker(...args) {
         if (isCnPFileInput(this)) {
             if (isPageWorld) {
+                if (shouldBypassCnPForNativePicker(this)) {
+                    if (typeof oriShowPicker === 'function')
+                        return oriShowPicker.apply(this, args);
+
+                    return oriClick.apply(this, args);
+                }
+
                 if (fulfillPendingPickerlessInput(this))
+                    return;
+
+                if (shouldSuppressPickerlessFileActivation(this))
                     return;
 
                 if (requestIsolatedOverlayForFileInput(this))
@@ -487,10 +928,14 @@ if (!document.cnpCoordListener)
 
 // Sets a node up for CnP Overlay
 function setupcreateOverlay(node) {
-    if (node.id != "cnp-overlay-file-input" && !node.dataset.cnpCreateListener) {
+    if (node.id != "cnp-overlay-file-input" && !node.dataset.cnpCreateListener && !isIgnoredUploadSurface(node)) {
         node.addEventListener("click", createOverlay);
         node.dataset.cnpCreateListener = "true";
     }
+}
+
+function shouldIgnoreUntrustedOverlayClick(event) {
+    return event.isTrusted === false;
 }
 
 // Ctrl V listener
@@ -720,12 +1165,26 @@ async function renderClipboardFiles(files, overlay, overlayFileInput) {
     }
 
     const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
-    imagePreviewContainer.style.cursor = 'pointer';
-    imagePreviewContainer.onclick = () => {
+    let previewAttached = false;
+    const attachPreviewFiles = event => {
+        if (previewAttached)
+            return;
+
+        previewAttached = true;
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function')
+                event.stopImmediatePropagation();
+        }
         originalInput.files = fileList.files;
         triggerChangeEvent(originalInput);
         closeOverlay();
     };
+
+    imagePreviewContainer.style.cursor = 'pointer';
+    imagePreviewContainer.addEventListener('pointerdown', attachPreviewFiles);
+    imagePreviewContainer.addEventListener('click', attachPreviewFiles);
     return true;
 }
 
@@ -852,11 +1311,23 @@ function ensureOverlayStyles() {
         }
 
         #cnp-overlay-file-input {
-            display: none;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: default;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            z-index: 1;
         }
 
         #cnp-upload {
+            position: relative;
+            z-index: 0;
             font-weight: normal;
+            pointer-events: none;
         }
 
         #cnp-upload svg {
@@ -865,8 +1336,11 @@ function ensureOverlayStyles() {
 
         .cnp-menu-item {
             cursor: default;
+            display: block;
             margin-bottom: 7px;
+            overflow: hidden;
             padding: 6px;
+            position: relative;
         }
 
         .cnp-menu-item:hover {
@@ -981,11 +1455,12 @@ function buildOverlayContent(overlay) {
     const overlayFileInput = document.createElement('input');
     overlayFileInput.type = 'file';
     overlayFileInput.id = 'cnp-overlay-file-input';
-    content.appendChild(overlayFileInput);
 
     const uploadBtn = document.createElement('div');
     uploadBtn.id = 'cnp-upload-btn';
     uploadBtn.className = 'cnp-menu-item';
+    uploadBtn.setAttribute('role', 'button');
+    uploadBtn.tabIndex = 0;
 
     const upload = document.createElement('span');
     upload.id = 'cnp-upload';
@@ -997,6 +1472,7 @@ function buildOverlayContent(overlay) {
     uploadText.textContent = 'Upload File';
     upload.appendChild(uploadText);
     uploadBtn.appendChild(upload);
+    uploadBtn.appendChild(overlayFileInput);
     content.appendChild(uploadBtn);
 
     overlay.appendChild(content);
@@ -1005,6 +1481,9 @@ function buildOverlayContent(overlay) {
 
 // When prepped input elements are clicked
 function createOverlay(event) {
+    if (shouldIgnoreUntrustedOverlayClick(event))
+        return;
+
     // Check if overlay is already visible for this input
     const existingOverlay = document.querySelector('.cnp-overlay');
 
@@ -1039,6 +1518,10 @@ function createOverlay(event) {
         buildOverlayContent(overlay);
 
                         document.body.appendChild(overlay);
+                        overlay.dispatchEvent(new CustomEvent('cnp-overlay-created', { bubbles: true, composed: true }));
+                        ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(type => {
+                            overlay.addEventListener(type, stopHostPagePropagation);
+                        });
                         // Ensure overlay floats above page content even if page CSS wasn't copied
                         try {
                             overlay.style.left = overlay.style.left || '0px';
@@ -1090,8 +1573,24 @@ function createOverlay(event) {
 
                         // Overlay upload click listener
                         const uploadBtn = overlay.querySelector('#cnp-upload-btn');
-                        overlayFileInput.focus({ preventScroll: true });
-                        uploadBtn.onclick = () => overlayFileInput.click();
+                        uploadBtn.focus({ preventScroll: true });
+                        uploadBtn.onclick = event => {
+                            event.stopPropagation();
+                            if (originalInput.dataset && originalInput.dataset.cnpPickerProxyNative === 'true') {
+                                event.preventDefault();
+                                const nativeUploadEvent = new CustomEvent('cnp-picker-proxy-native-upload', {
+                                    bubbles: false,
+                                    cancelable: true,
+                                    composed: true
+                                });
+                                const nativeUploadAllowed = originalInput.dispatchEvent(nativeUploadEvent);
+                                const nativeUploadStarted = Date.now() - Number(originalInput.dataset.cnpNativeUploadStarted || 0) < 1500;
+                                if (!nativeUploadAllowed || nativeUploadEvent.defaultPrevented || nativeUploadStarted) {
+                                    closeOverlay();
+                                    return;
+                                }
+                            }
+                        };
 
                         // Close overlay when clicked outside
                         if (!document.cnpRemoveListener)
@@ -1218,6 +1717,8 @@ function cloneEvent(e) {
 
 // Trigger change event on original input to update value (like disabled buttons)
 function triggerChangeEvent(originalInput) {
+    if (!(originalInput.dataset && originalInput.dataset.cnpPickerProxy === 'true'))
+        markSuppressNextFileActivation(originalInput);
     originalInput.dispatchEvent(new Event('change', { bubbles: true }));
     originalInput.dispatchEvent(new Event('input', { bubbles: true }));
 }

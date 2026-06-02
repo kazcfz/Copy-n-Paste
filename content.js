@@ -173,6 +173,40 @@ function isPageFileInput(node) {
     return node && node.matches && node.matches("input[type='file']") && node.id !== 'cnp-overlay-file-input' && !node.id.toLowerCase().startsWith('cnp');
 }
 
+function uploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.id,
+        element.getAttribute('class'),
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function ignoredUploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function isIgnoredUploadSurface(element) {
+    return /\bmeta\s+ai\s+business\s+assistant\b|\bmeta\s+ai\b/i.test(ignoredUploadSurfaceText(element));
+}
+
 function hasActiveUserGesture() {
     return !navigator.userActivation || navigator.userActivation.isActive;
 }
@@ -180,6 +214,16 @@ function hasActiveUserGesture() {
 function hasRecentPageActivation(fileInput) {
     const activatedAt = Number(fileInput.dataset.cnpPageActivation || 0);
     return activatedAt > 0 && Date.now() - activatedAt < 1000;
+}
+
+function hasRecentSuppressedFileActivation(fileInput) {
+    const inputSuppressedAt = Number(fileInput.dataset.cnpSuppressNextFileActivation || 0);
+    const documentSuppressedAt = Number(document.documentElement.dataset.cnpSuppressFileActivation || 0);
+    return Date.now() - Math.max(inputSuppressedAt, documentSuppressedAt) < 1500;
+}
+
+function hasRecentPickerlessHandoff() {
+    return Date.now() - Number(document.documentElement.dataset.cnpPickerlessHandoff || 0) < 1500;
 }
 
 function findClickedFileInput(event) {
@@ -235,8 +279,28 @@ function installFileInputActivationListeners() {
 
     document.addEventListener("click", event => {
         const fileInput = findClickedFileInput(event);
-        if (fileInput)
-            openOverlayFromCapturedClick(event, fileInput);
+        if (!fileInput)
+            return;
+
+        if (event.isTrusted === false && hasRecentSuppressedFileActivation(fileInput)) {
+            if (event.cancelable !== false)
+                event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function')
+                event.stopImmediatePropagation();
+            return;
+        }
+
+        if (event.isTrusted === false && hasRecentPickerlessHandoff())
+            return;
+
+        if (event.isTrusted === false && !hasRecentPageActivation(fileInput) && !hasActiveUserGesture())
+            return;
+
+        if (fileInput.dataset.cnpNativePickerBypass && Date.now() - Number(fileInput.dataset.cnpNativePickerBypass) < 1500)
+            return;
+
+        openOverlayFromCapturedClick(event, fileInput);
     }, true);
 }
 
