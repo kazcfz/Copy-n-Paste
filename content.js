@@ -91,6 +91,17 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
                 if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
                 const blob = new Blob([code], { type: 'text/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
+                s.onload = () => URL.revokeObjectURL(blobUrl);
+                s.onerror = () => {
+                    try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                    try { s.remove(); } catch (e) { }
+
+                    const fallback = targetDoc.createElement('script');
+                    if (id) fallback.id = id;
+                    if (attrs) Object.keys(attrs).forEach(k => fallback.setAttribute(k, attrs[k]));
+                    try { fallback.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { fallback.src = safeGetURL(scriptPath) }
+                    targetDoc.head.appendChild(fallback);
+                };
                 try { s.setAttribute('src', blobUrl); } catch (e) { s.src = blobUrl }
                 targetDoc.head.appendChild(s);
             } catch (e) {
