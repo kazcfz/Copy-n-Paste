@@ -945,8 +945,9 @@ async function ctrlV(event) {
         event.preventDefault();
         if (ctrlVdata && ctrlVdata.files) {
             const fileList = new DataTransfer();
-            // Include previously selected files for multi-file
-            [...originalInput.files].forEach(file => fileList.items.add(file));
+            // Preserve existing files only for multi-file inputs.
+            if (shouldAppendExistingFiles(originalInput))
+                [...originalInput.files].forEach(file => fileList.items.add(file));
 
             // Append pasted files
             const readPromise = [...ctrlVdata.files]
@@ -1086,6 +1087,10 @@ function clipboardFileName(file) {
     return 'CnP_' + new Date().toLocaleString('en-GB', { hour12: false }).replace(/, /g, '_').replace(/[\/: ]/g, '') + '.' + extension;
 }
 
+function shouldAppendExistingFiles(input) {
+    return !!(input && (input.multiple || input.webkitdirectory));
+}
+
 async function readClipboardFiles() {
     if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function')
         return [];
@@ -1137,7 +1142,8 @@ async function renderClipboardFiles(files, overlay, overlayFileInput) {
     };
 
     const fileList = new DataTransfer();
-    [...originalInput.files].forEach(file => fileList.items.add(file));
+    if (shouldAppendExistingFiles(originalInput))
+        [...originalInput.files].forEach(file => fileList.items.add(file));
 
     const badge = overlay.querySelector('.cnp-preview-badge');
     var isFirstFile = true;
@@ -1564,8 +1570,9 @@ function createOverlay(event) {
                         overlayFileInput.oncancel = () => closeOverlay();
                         overlayFileInput.onchange = event => {
                             const fileList = new DataTransfer();
-                            // Reattach previous files and append new ones
-                            [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
+                            if (shouldAppendExistingFiles(originalInput))
+                                [...originalInput.files].forEach(file => fileList.items.add(file));
+                            [...event.target.files].forEach(file => fileList.items.add(file));
                             originalInput.files = fileList.files;
                             triggerChangeEvent(originalInput);
                             closeOverlay();
@@ -1625,9 +1632,11 @@ function createOverlay(event) {
                             event.preventDefault();
                             CNP_dropText.style.display = 'none';
                             const fileList = new DataTransfer();
-                            // Reattach previous files and append new ones
+                            // Preserve existing files only for multi-file inputs.
                             const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
-                            [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
+                            if (shouldAppendExistingFiles(originalInput))
+                                [...originalInput.files].forEach(file => fileList.items.add(file));
+                            [...excludedFolders].forEach(file => fileList.items.add(file));
                             originalInput.files = fileList.files;
                             triggerChangeEvent(originalInput);
                             closeOverlay();
