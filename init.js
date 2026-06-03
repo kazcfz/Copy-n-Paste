@@ -57,9 +57,10 @@ function findActivatedFileInput(event) {
 
 function requestIsolatedOverlayForFileInput(input) {
     try {
-        if (navigator.userActivation && !navigator.userActivation.isActive)
+        if (navigator.userActivation && !navigator.userActivation.isActive && !hasRecentFilePickerCandidate(input))
             return false;
 
+        input.dataset.cnpOverlayRequested = String(Date.now());
         input.dataset.cnpPageActivation = String(Date.now());
         input.dispatchEvent(new CustomEvent('cnp-page-file-input-activated', { bubbles: true, composed: true }));
         return true;
@@ -222,6 +223,7 @@ function filesToFileList(files) {
 var pendingPickerlessFiles = null;
 var pendingPickerlessFallback = null;
 var pickerlessNativeBypassUntil = 0;
+var trustedFilePickerGestureUntil = 0;
 var suppressPickerlessFileActivationUntil = 0;
 var pickerlessProxyTargets = new WeakMap();
 var pickerlessPreparedInputs = new WeakMap();
@@ -238,6 +240,34 @@ function markPickerlessHandoff() {
     try {
         document.documentElement.dataset.cnpPickerlessHandoff = String(Date.now());
     } catch (e) { }
+}
+
+function markTrustedFilePickerGesture(event) {
+    if (!event || !event.isTrusted || (event.target && isCnPElement(event.target)))
+        return;
+
+    trustedFilePickerGestureUntil = Date.now() + 1500;
+}
+
+function hasTrustedFilePickerGesture() {
+    return Date.now() < trustedFilePickerGestureUntil;
+}
+
+function hasRecentOverlayRequest(input) {
+    return !!(input && input.dataset && Date.now() - Number(input.dataset.cnpOverlayRequested || 0) < 1500);
+}
+
+function markFilePickerCandidate(input) {
+    if (!input || input.type !== 'file' || !hasTrustedFilePickerGesture())
+        return;
+
+    try {
+        input.dataset.cnpFilePickerCandidate = String(Date.now());
+    } catch (e) { }
+}
+
+function hasRecentFilePickerCandidate(input) {
+    return !!(input && input.dataset && Date.now() - Number(input.dataset.cnpFilePickerCandidate || 0) < 1500);
 }
 
 function fulfillPendingPickerlessInput(input) {
@@ -344,6 +374,21 @@ function fulfillPendingPickerlessInputsFrom(root) {
     return !!(input && fulfillPendingPickerlessInput(input));
 }
 
+function markFilePickerCandidatesFrom(root) {
+    if (!root)
+        return;
+
+    if (isCnPFileInput(root)) {
+        markFilePickerCandidate(root);
+        return;
+    }
+
+    if (!root.querySelectorAll)
+        return;
+
+    root.querySelectorAll('input[type="file"]').forEach(markFilePickerCandidate);
+}
+
 function installPendingPickerlessInputObserver() {
     if (document.cnpPendingPickerlessInputObserver)
         return;
@@ -351,8 +396,14 @@ function installPendingPickerlessInputObserver() {
     document.cnpPendingPickerlessInputObserver = true;
     const observer = new MutationObserver(mutations => {
         for (const mutation of mutations) {
+            if (mutation.type === 'attributes')
+                markFilePickerCandidatesFrom(mutation.target);
+
+            for (const node of mutation.addedNodes)
+                markFilePickerCandidatesFrom(node);
+
             if (!pendingPickerlessFiles)
-                return;
+                continue;
 
             if (mutation.type === 'attributes' && fulfillPendingPickerlessInputsFrom(mutation.target))
                 return;
@@ -387,8 +438,10 @@ function installPendingPickerlessCreationHooks() {
                 },
                 set(value) {
                     typeDescriptor.set.call(this, value);
-                    if (String(value).toLowerCase() === 'file')
+                    if (String(value).toLowerCase() === 'file') {
+                        markFilePickerCandidate(this);
                         preparePendingPickerlessInput(this);
+                    }
                 }
             });
         } catch (e) { }
@@ -397,8 +450,10 @@ function installPendingPickerlessCreationHooks() {
     const originalSetAttribute = Element.prototype.setAttribute;
     Element.prototype.setAttribute = mirrorNativeFunction(function setAttribute(...args) {
         const result = originalSetAttribute.apply(this, args);
-        if (this instanceof HTMLInputElement && String(args[0]).toLowerCase() === 'type' && String(args[1]).toLowerCase() === 'file')
+        if (this instanceof HTMLInputElement && String(args[0]).toLowerCase() === 'type' && String(args[1]).toLowerCase() === 'file') {
+            markFilePickerCandidate(this);
             preparePendingPickerlessInput(this);
+        }
         return result;
     }, originalSetAttribute);
 }
@@ -494,6 +549,24 @@ function uploadControlUserText(element) {
     ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
 }
 
+function uploadControlContextText(element) {
+    if (!element || !element.closest)
+        return '';
+
+    const context = element.closest('[role="dialog"], [aria-modal="true"], simplified-input-menu, [role="menu"], [role="listbox"]')
+        || element.parentElement;
+    return (context && (context.innerText || context.textContent || '') || '').slice(0, 400).replace(/[-_]+/g, ' ');
+}
+
+function hasNearbyFileInput(element) {
+    let current = element;
+    for (let depth = 0; current && depth < 5; depth += 1, current = current.parentElement) {
+        if (current.querySelector && current.querySelector('input[type="file"]'))
+            return true;
+    }
+    return false;
+}
+
 function uploadAcceptFromControl(control) {
     const text = uploadControlText(control);
     const acceptsImage = /\b(image|photo|picture)\b/i.test(text);
@@ -526,8 +599,72 @@ function hasLocalUploadSource(text) {
     return /\b(computer|desktop|device|local|disk|drive|folder|gallery|library)\b/i.test(text);
 }
 
+function hasRemoteUploadSource(text) {
+    return /\bcloud\b|\bone\s*drive\b|\bgoogle\s+drive\b|\bicloud\b|\bsharepoint\b|\bdropbox\b/i.test(text);
+}
+
+function hasRemoteFileProvider(text) {
+    return /\bone\s*drive\b|\bgoogle\s+drive\b|\bicloud\b|\bsharepoint\b|\bdropbox\b/i.test(text);
+}
+
+function remoteFilePickerSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.id,
+        element.getAttribute('class'),
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.getAttribute('data-automationid'),
+        element.getAttribute('data-automation-id'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 800)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function isInsideRemoteFilePicker(element) {
+    if (!element || !element.parentElement)
+        return false;
+
+    const pageText = [location.hostname, location.pathname, document.title].join(' ');
+    if (hasRemoteFileProvider(pageText))
+        return true;
+
+    let current = element.parentElement;
+    for (let depth = 0; current && current !== document.documentElement && depth < 10; depth += 1, current = current.parentElement) {
+        const text = remoteFilePickerSurfaceText(current);
+        if (hasRemoteFileProvider(text) && /\b(my\s+files|files?|folders?|recent|shared|upload|cloud)\b/i.test(text))
+            return true;
+        if (/\bcloud\s+files\b/i.test(text) && /\bmy\s+files\b/i.test(text))
+            return true;
+    }
+
+    return false;
+}
+
+function hasExplicitFileSelectionIntent(text) {
+    return /\b(attach|browse|choose|select)\b/i.test(text)
+        || (/\badd\b/i.test(text) && hasUploadObject(text));
+}
+
+function hasNearbyFileSelectionIntent(text, element) {
+    return !!(element && hasNearbyFileInput(element) && /\b(add|change|edit|replace)\b/i.test(text) && hasUploadObject(text));
+}
+
 function hasNonUploadIntent(text) {
     return /\b(display mode|saved posts?|save post|bookmark|reload|dismiss|close|camera|take a picture)\b/i.test(text);
+}
+
+function isUploadMenuChoice(element) {
+    if (!element || !element.matches)
+        return false;
+
+    return element.matches('[role="menuitem"], [role="menuitemradio"], [role="option"], .media-editor-file-selector__upload-media-button')
+        || !!element.closest('simplified-input-menu, [role="menu"], [role="listbox"]');
 }
 
 function isMenuTrigger(element) {
@@ -543,14 +680,34 @@ function isMenuTrigger(element) {
     if (element.hasAttribute('aria-expanded'))
         return true;
 
-    return /\b(dropdown|menu|caret|chevron)\b/i.test(uploadControlUserText(element));
+    const controlledId = element.getAttribute('aria-controls') || element.getAttribute('aria-owns');
+    if (controlledId) {
+        const controlled = document.getElementById(controlledId);
+        if (controlled && controlled.matches && controlled.matches('[role="menu"], [role="listbox"], .ui-menu'))
+            return true;
+    }
+
+    return /\b(dropdown|drop\s*down|menu|menu\s*button|menubutton|split\s*button|splitbutton|caret|chevron|flyout|popover)\b/i.test(uploadControlText(element));
 }
 
-function isLikelyPickerlessUploadText(text, negativeText = text) {
-    if (!hasUploadIntent(text) || hasNonUploadIntent(negativeText || text))
+function isLikelyPickerlessUploadText(text, negativeText = text, element = null) {
+    const contextText = element ? uploadControlContextText(element) : '';
+    const hasIntent = hasUploadIntent(text)
+        || hasNearbyFileSelectionIntent(text, element);
+
+    if (!hasIntent || hasNonUploadIntent(negativeText || text) || hasRemoteUploadSource(negativeText || text))
         return false;
 
-    return hasUploadObject(text) || hasLocalUploadSource(text);
+    if (hasLocalUploadSource(text))
+        return true;
+
+    if (hasExplicitFileSelectionIntent(text))
+        return true;
+
+    if (/\bupload\b/i.test(text) && hasUploadObject(contextText))
+        return true;
+
+    return hasUploadObject(text) && isUploadMenuChoice(element);
 }
 
 function shouldUseNativePickerlessUpload(control) {
@@ -564,15 +721,35 @@ function shouldAllowNativeUploadActivation(control) {
 function isPickerlessUploadButton(element) {
     if (!element || !element.matches || !visibleElement(element) || isCnPElement(element) || isIgnoredUploadSurface(element))
         return false;
-    if (!element.matches('button, a, label, input[type="button"], input[type="submit"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], .media-editor-file-selector__upload-media-button'))
+    if (!element.matches('button, label, input[type="button"], input[type="submit"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], .media-editor-file-selector__upload-media-button')
+        && !(element.matches('a') && isUploadMenuChoice(element)))
         return false;
     if (element.matches('[role="dialog"], [role="tab"], [data-test-modal]'))
         return false;
     if (isMenuTrigger(element))
         return false;
+    if (isInsideRemoteFilePicker(element))
+        return false;
 
     const text = uploadControlText(element);
-    return isLikelyPickerlessUploadText(text, uploadControlUserText(element));
+    return isLikelyPickerlessUploadText(text, uploadControlUserText(element), element);
+}
+
+function preventPickerlessUploadActivation(event) {
+    if (!isPageWorld || !event.isTrusted)
+        return;
+
+    const control = findPickerlessUploadControl(event);
+    if (control && shouldAllowNativeUploadActivation(control))
+        return;
+
+    if (!control || !openOverlayForDropUpload(control))
+        return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function')
+        event.stopImmediatePropagation();
 }
 
 function findPickerlessUploadControl(event) {
@@ -697,7 +874,7 @@ function preventNativeFileActivation(event) {
         return;
     }
 
-    if (!event.isTrusted && navigator.userActivation && !navigator.userActivation.isActive)
+    if (!event.isTrusted && navigator.userActivation && !navigator.userActivation.isActive && !hasRecentFilePickerCandidate(fileInput))
         return;
 
     if (!requestIsolatedOverlayForFileInput(fileInput))
@@ -709,25 +886,9 @@ function preventNativeFileActivation(event) {
         event.stopImmediatePropagation();
 }
 
-function preventPickerlessUploadActivation(event) {
-    if (!isPageWorld || !event.isTrusted)
-        return;
-
-    const control = findPickerlessUploadControl(event);
-    if (control && shouldAllowNativeUploadActivation(control))
-        return;
-
-    if (!control || !openOverlayForDropUpload(control))
-        return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === 'function')
-        event.stopImmediatePropagation();
-}
-
 if (isPageWorld && !document.cnpPageFileActivationListener) {
     document.cnpPageFileActivationListener = true;
+    ['pointerdown', 'mousedown', 'click', 'keydown'].forEach(type => document.addEventListener(type, markTrustedFilePickerGesture, true));
     document.addEventListener('click', preventNativeFileActivation, true);
     document.addEventListener('click', preventPickerlessUploadActivation, true);
     document.addEventListener('cnp-overlay-created', event => containCnPOverlayEvents(event.target), true);
@@ -1493,15 +1654,20 @@ function createOverlay(event) {
     // Check if overlay is already visible for this input
     const existingOverlay = document.querySelector('.cnp-overlay');
 
-    // If overlay exists, this is a second click - bypass extension and allow native behavior
+    // If an overlay already exists, recreate it for the new activation.  Keep the
+    // recent-request guard so duplicate site-triggered activations for the same
+    // input do not immediately close/reopen the overlay.
     if (existingOverlay) {
-        // Remove the overlay
+        if (event.target && hasRecentOverlayRequest(event.target)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
+
         closeOverlay();
-        // Don't prevent default - let the native file picker open
-        return;
     }
 
-    // First click - prevent default and show overlay
+    // Prevent default and show overlay
     event.preventDefault();
     event.stopPropagation();
     originalInput = event.target;
@@ -1523,197 +1689,197 @@ function createOverlay(event) {
 
         buildOverlayContent(overlay);
 
-                        document.body.appendChild(overlay);
-                        overlay.dispatchEvent(new CustomEvent('cnp-overlay-created', { bubbles: true, composed: true }));
-                        ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(type => {
-                            overlay.addEventListener(type, stopHostPagePropagation);
-                        });
-                        // Ensure overlay floats above page content even if page CSS wasn't copied
-                        try {
-                            overlay.style.left = overlay.style.left || '0px';
-                            overlay.style.top = overlay.style.top || '0px';
-                            overlay.style.zIndex = overlay.style.zIndex || '2147483647';
-                        } catch (e) { logging(e) }
+        document.body.appendChild(overlay);
+        overlay.dispatchEvent(new CustomEvent('cnp-overlay-created', { bubbles: true, composed: true }));
+        ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(type => {
+            overlay.addEventListener(type, stopHostPagePropagation);
+        });
+        // Ensure overlay floats above page content even if page CSS wasn't copied
+        try {
+            overlay.style.left = overlay.style.left || '0px';
+            overlay.style.top = overlay.style.top || '0px';
+            overlay.style.zIndex = overlay.style.zIndex || '2147483647';
+        } catch (e) { logging(e) }
 
-                        // Position overlay to cursor coord
-                        const overlayContent = overlay.querySelector('.cnp-overlay-content');
-                        if (!overlayContent) {
-                            logging('overlay content missing after insertion');
-                            return;
-                        }
+        // Position overlay to cursor coord
+        const overlayContent = overlay.querySelector('.cnp-overlay-content');
+        if (!overlayContent) {
+            logging('overlay content missing after insertion');
+            return;
+        }
 
-                        let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
-                        let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
+        let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
+        let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
 
-                        // Flip if overlay overshoots
-                        const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
-                        const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
+        // Flip if overlay overshoots
+        const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
+        const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
 
-                        if (tooMuchRight >= innerWidth)
-                            overlayLeftPos -= overlayContent.offsetWidth;
-                        if (tooMuchBottom >= innerHeight)
-                            overlayBottomPos -= overlayContent.offsetHeight;
+        if (tooMuchRight >= innerWidth)
+            overlayLeftPos -= overlayContent.offsetWidth;
+        if (tooMuchBottom >= innerHeight)
+            overlayBottomPos -= overlayContent.offsetHeight;
 
-                        overlayContent.style.left = overlayLeftPos + 'px';
-                        overlayContent.style.top = overlayBottomPos + 'px';
+        overlayContent.style.left = overlayLeftPos + 'px';
+        overlayContent.style.top = overlayBottomPos + 'px';
 
-                        // Follow attributes of original input element
-                        const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
-                        overlayFileInput.multiple = originalInput.multiple;
-                        overlayFileInput.webkitdirectory = originalInput.webkitdirectory;
+        // Follow attributes of original input element
+        const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
+        overlayFileInput.multiple = originalInput.multiple;
+        overlayFileInput.webkitdirectory = originalInput.webkitdirectory;
 
-                        if (overlayFileInput.multiple)
-                            overlay.querySelector('#cnp-upload-text').textContent = "Upload Files";
+        if (overlayFileInput.multiple)
+            overlay.querySelector('#cnp-upload-text').textContent = "Upload Files";
 
-                        // Overlay handle file input
-                        overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
-                        overlayFileInput.oncancel = () => closeOverlay();
-                        overlayFileInput.onchange = event => {
-                            const fileList = new DataTransfer();
-                            if (shouldAppendExistingFiles(originalInput))
-                                [...originalInput.files].forEach(file => fileList.items.add(file));
-                            [...event.target.files].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
-                        }
+        // Overlay handle file input
+        overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
+        overlayFileInput.oncancel = () => closeOverlay();
+        overlayFileInput.onchange = event => {
+            const fileList = new DataTransfer();
+            if (shouldAppendExistingFiles(originalInput))
+                [...originalInput.files].forEach(file => fileList.items.add(file));
+            [...event.target.files].forEach(file => fileList.items.add(file));
+            originalInput.files = fileList.files;
+            triggerChangeEvent(originalInput);
+            closeOverlay();
+        }
 
-                        // Overlay upload click listener
-                        const uploadBtn = overlay.querySelector('#cnp-upload-btn');
-                        uploadBtn.focus({ preventScroll: true });
-                        uploadBtn.onclick = event => {
-                            event.stopPropagation();
-                            if (originalInput.dataset && originalInput.dataset.cnpPickerProxyNative === 'true') {
-                                event.preventDefault();
-                                const nativeUploadEvent = new CustomEvent('cnp-picker-proxy-native-upload', {
-                                    bubbles: false,
-                                    cancelable: true,
-                                    composed: true
-                                });
-                                const nativeUploadAllowed = originalInput.dispatchEvent(nativeUploadEvent);
-                                const nativeUploadStarted = Date.now() - Number(originalInput.dataset.cnpNativeUploadStarted || 0) < 1500;
-                                if (!nativeUploadAllowed || nativeUploadEvent.defaultPrevented || nativeUploadStarted) {
-                                    closeOverlay();
-                                    return;
-                                }
-                            }
-                        };
+        // Overlay upload click listener
+        const uploadBtn = overlay.querySelector('#cnp-upload-btn');
+        uploadBtn.focus({ preventScroll: true });
+        uploadBtn.onclick = event => {
+            event.stopPropagation();
+            if (originalInput.dataset && originalInput.dataset.cnpPickerProxyNative === 'true') {
+                event.preventDefault();
+                const nativeUploadEvent = new CustomEvent('cnp-picker-proxy-native-upload', {
+                    bubbles: false,
+                    cancelable: true,
+                    composed: true
+                });
+                const nativeUploadAllowed = originalInput.dispatchEvent(nativeUploadEvent);
+                const nativeUploadStarted = Date.now() - Number(originalInput.dataset.cnpNativeUploadStarted || 0) < 1500;
+                if (!nativeUploadAllowed || nativeUploadEvent.defaultPrevented || nativeUploadStarted) {
+                    closeOverlay();
+                    return;
+                }
+            }
+        };
 
-                        // Close overlay when clicked outside
-                        if (!document.cnpRemoveListener)
-                            document.addEventListener('click', event => {
-                                document.cnpRemoveListener = true;
-                                document.querySelectorAll('.cnp-overlay-content').forEach(overlayContent => {
-                                    const overlay = overlayContent.closest('.cnp-overlay');
-                                    if (overlay && Date.now() < Number(overlay.dataset.cnpIgnoreCloseUntil || 0))
-                                        return;
+        // Close overlay when clicked outside
+        if (!document.cnpRemoveListener)
+            document.addEventListener('click', event => {
+                document.cnpRemoveListener = true;
+                document.querySelectorAll('.cnp-overlay-content').forEach(overlayContent => {
+                    const overlay = overlayContent.closest('.cnp-overlay');
+                    if (overlay && Date.now() < Number(overlay.dataset.cnpIgnoreCloseUntil || 0))
+                        return;
 
-                                    if (!overlayContent.contains(event.target))
-                                        closeOverlay();
-                                })
-                            })
+                    if (!overlayContent.contains(event.target))
+                        closeOverlay();
+                })
+            })
 
-                        // Handle dragover event
-                        const CNP_dropText = overlay.querySelector('#cnp-drop-text');
-                        overlay.ondragover = event => {
-                            event.stopPropagation();
-                            event.preventDefault();
-                            CNP_dropText.style.display = 'flex';
-                        };
+        // Handle dragover event
+        const CNP_dropText = overlay.querySelector('#cnp-drop-text');
+        overlay.ondragover = event => {
+            event.stopPropagation();
+            event.preventDefault();
+            CNP_dropText.style.display = 'flex';
+        };
 
-                        // Handle dragleave event
-                        overlay.ondragleave = event => {
-                            if (!overlay.contains(event.relatedTarget))
-                                CNP_dropText.style.display = 'none';
-                        };
+        // Handle dragleave event
+        overlay.ondragleave = event => {
+            if (!overlay.contains(event.relatedTarget))
+                CNP_dropText.style.display = 'none';
+        };
 
-                        // Handle drop event
-                        overlay.ondrop = event => {
-                            event.preventDefault();
-                            CNP_dropText.style.display = 'none';
-                            const fileList = new DataTransfer();
-                            // Preserve existing files only for multi-file inputs.
-                            const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
-                            if (shouldAppendExistingFiles(originalInput))
-                                [...originalInput.files].forEach(file => fileList.items.add(file));
-                            [...excludedFolders].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
-                        };
+        // Handle drop event
+        overlay.ondrop = event => {
+            event.preventDefault();
+            CNP_dropText.style.display = 'none';
+            const fileList = new DataTransfer();
+            // Preserve existing files only for multi-file inputs.
+            const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
+            if (shouldAppendExistingFiles(originalInput))
+                [...originalInput.files].forEach(file => fileList.items.add(file));
+            [...excludedFolders].forEach(file => fileList.items.add(file));
+            originalInput.files = fileList.files;
+            triggerChangeEvent(originalInput);
+            closeOverlay();
+        };
 
-                        // Handle Ctrl+V action
-                        document.addEventListener('keydown', ctrlV);
+        // Handle Ctrl+V action
+        document.addEventListener('keydown', ctrlV);
 
-                        var isClipboardPreviewResolved = false;
-                        const finishClipboardPreview = () => isClipboardPreviewResolved = true;
-                        const fallbackNoImageTimer = setTimeout(() => {
-                            if (!isClipboardPreviewResolved && document.getElementById(overlay.id)) {
-                                finishClipboardPreview();
-                                noImage();
-                            }
-                        }, 800);
+        var isClipboardPreviewResolved = false;
+        const finishClipboardPreview = () => isClipboardPreviewResolved = true;
+        const fallbackNoImageTimer = setTimeout(() => {
+            if (!isClipboardPreviewResolved && document.getElementById(overlay.id)) {
+                finishClipboardPreview();
+                noImage();
+            }
+        }, 800);
 
-                        // Handle paste event — use a short-lived isolated textarea so clipboard
-                        // content never enters the overlay DOM and the listener is scoped to a
-                        // specific element rather than the entire document.  A closure-level guard
-                        // (pasteExpected) prevents any external execCommand call from satisfying
-                        // the listener because the guard is set and consumed in the same
-                        // synchronous frame and is inaccessible to page scripts.
-                        const pasteProxy = document.createElement('div');
-                        pasteProxy.setAttribute('aria-hidden', 'true');
-                        pasteProxy.contentEditable = 'true';
-                        pasteProxy.tabIndex = -1;
-                        pasteProxy.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;top:0;left:0;overflow:hidden;pointer-events:none;';
-                        (document.body || document.documentElement).appendChild(pasteProxy);
+        // Handle paste event — use a short-lived isolated textarea so clipboard
+        // content never enters the overlay DOM and the listener is scoped to a
+        // specific element rather than the entire document.  A closure-level guard
+        // (pasteExpected) prevents any external execCommand call from satisfying
+        // the listener because the guard is set and consumed in the same
+        // synchronous frame and is inaccessible to page scripts.
+        const pasteProxy = document.createElement('div');
+        pasteProxy.setAttribute('aria-hidden', 'true');
+        pasteProxy.contentEditable = 'true';
+        pasteProxy.tabIndex = -1;
+        pasteProxy.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;top:0;left:0;overflow:hidden;pointer-events:none;';
+        (document.body || document.documentElement).appendChild(pasteProxy);
 
-                        let pasteExpected = false;
-                        pasteProxy.addEventListener('paste', async event => {
-                            event.stopPropagation();
-                            event.preventDefault();
+        let pasteExpected = false;
+        pasteProxy.addEventListener('paste', async event => {
+            event.stopPropagation();
+            event.preventDefault();
 
-                            if (!pasteExpected)
-                                return;
-                            pasteExpected = false;
+            if (!pasteExpected)
+                return;
+            pasteExpected = false;
 
-                            // Clear and remove the proxy immediately so pasted text cannot be
-                            // read from the DOM by page scripts.
-                            if (pasteProxy.textContent)
-                                pasteProxy.textContent = '';
-                            pasteProxy.remove();
+            // Clear and remove the proxy immediately so pasted text cannot be
+            // read from the DOM by page scripts.
+            if (pasteProxy.textContent)
+                pasteProxy.textContent = '';
+            pasteProxy.remove();
 
-                            if (isClipboardPreviewResolved || !overlayFileInput)
-                                return;
+            if (isClipboardPreviewResolved || !overlayFileInput)
+                return;
 
-                            const dataTransfer = event.clipboardData;
-                            ctrlVdata = cloneEvent(event.clipboardData);
-                            finishClipboardPreview();
-                            clearTimeout(fallbackNoImageTimer);
-                            await renderClipboardFiles(dataTransfer.files, overlay, overlayFileInput);
-                        }, { once: true });
+            const dataTransfer = event.clipboardData;
+            ctrlVdata = cloneEvent(event.clipboardData);
+            finishClipboardPreview();
+            clearTimeout(fallbackNoImageTimer);
+            await renderClipboardFiles(dataTransfer.files, overlay, overlayFileInput);
+        }, { once: true });
 
-                        // Set the guard immediately before focus+execCommand — both are
-                        // synchronous so no external code can interleave between the two.
-                        pasteProxy.focus({ preventScroll: true });
-                        if (document.activeElement === pasteProxy) {
-                            pasteExpected = true;
-                            document.execCommand('paste');
-                            pasteExpected = false; // reset if execCommand did not dispatch synchronously
-                        }
+        // Set the guard immediately before focus+execCommand — both are
+        // synchronous so no external code can interleave between the two.
+        pasteProxy.focus({ preventScroll: true });
+        if (document.activeElement === pasteProxy) {
+            pasteExpected = true;
+            document.execCommand('paste');
+            pasteExpected = false; // reset if execCommand did not dispatch synchronously
+        }
 
-                        // Schedule cleanup in case execCommand did not fire the paste event
-                        if (pasteProxy.isConnected)
-                            setTimeout(() => { if (pasteProxy.textContent) pasteProxy.textContent = ''; pasteProxy.remove(); }, 1000);
+        // Schedule cleanup in case execCommand did not fire the paste event
+        if (pasteProxy.isConnected)
+            setTimeout(() => { if (pasteProxy.textContent) pasteProxy.textContent = ''; pasteProxy.remove(); }, 1000);
 
-                        setTimeout(async () => {
-                            const files = await readClipboardFiles().catch(() => []);
-                            if (isClipboardPreviewResolved || files.length == 0)
-                                return;
+        setTimeout(async () => {
+            const files = await readClipboardFiles().catch(() => []);
+            if (isClipboardPreviewResolved || files.length == 0)
+                return;
 
-                            finishClipboardPreview();
-                            clearTimeout(fallbackNoImageTimer);
-                            await renderClipboardFiles(files, overlay, overlayFileInput);
-                        }, 50);
+            finishClipboardPreview();
+            clearTimeout(fallbackNoImageTimer);
+            await renderClipboardFiles(files, overlay, overlayFileInput);
+        }, 50);
     } catch (error) { logging(error) }
 }
 
