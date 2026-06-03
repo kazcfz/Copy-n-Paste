@@ -1645,10 +1645,33 @@ function createOverlay(event) {
                             }
                         }, 800);
 
-                        // Handle paste event
-                        document.addEventListener('paste', async event => {
+                        // Handle paste event — use a short-lived isolated textarea so clipboard
+                        // content never enters the overlay DOM and the listener is scoped to a
+                        // specific element rather than the entire document.  A closure-level guard
+                        // (pasteExpected) prevents any external execCommand call from satisfying
+                        // the listener because the guard is set and consumed in the same
+                        // synchronous frame and is inaccessible to page scripts.
+                        const pasteProxy = document.createElement('div');
+                        pasteProxy.setAttribute('aria-hidden', 'true');
+                        pasteProxy.contentEditable = 'true';
+                        pasteProxy.tabIndex = -1;
+                        pasteProxy.style.cssText = 'position:fixed;opacity:0;width:1px;height:1px;top:0;left:0;overflow:hidden;pointer-events:none;';
+                        (document.body || document.documentElement).appendChild(pasteProxy);
+
+                        let pasteExpected = false;
+                        pasteProxy.addEventListener('paste', async event => {
                             event.stopPropagation();
                             event.preventDefault();
+
+                            if (!pasteExpected)
+                                return;
+                            pasteExpected = false;
+
+                            // Clear and remove the proxy immediately so pasted text cannot be
+                            // read from the DOM by page scripts.
+                            if (pasteProxy.textContent)
+                                pasteProxy.textContent = '';
+                            pasteProxy.remove();
 
                             if (isClipboardPreviewResolved || !overlayFileInput)
                                 return;
@@ -1658,13 +1681,20 @@ function createOverlay(event) {
                             finishClipboardPreview();
                             clearTimeout(fallbackNoImageTimer);
                             await renderClipboardFiles(dataTransfer.files, overlay, overlayFileInput);
-                        }, { once: true, capture: true });
+                        }, { once: true });
 
-                        // Trigger paste event
-                        overlay.contentEditable = true;
-                        overlay.focus({ preventScroll: true });
-                        document.execCommand('paste');
-                        overlay.contentEditable = false;
+                        // Set the guard immediately before focus+execCommand — both are
+                        // synchronous so no external code can interleave between the two.
+                        pasteProxy.focus({ preventScroll: true });
+                        if (document.activeElement === pasteProxy) {
+                            pasteExpected = true;
+                            document.execCommand('paste');
+                            pasteExpected = false; // reset if execCommand did not dispatch synchronously
+                        }
+
+                        // Schedule cleanup in case execCommand did not fire the paste event
+                        if (pasteProxy.isConnected)
+                            setTimeout(() => { if (pasteProxy.textContent) pasteProxy.textContent = ''; pasteProxy.remove(); }, 1000);
 
                         setTimeout(async () => {
                             const files = await readClipboardFiles().catch(() => []);
