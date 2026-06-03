@@ -9,11 +9,15 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "permissions": ["clipboardRead", "alarms"],
+    "permissions": ["clipboardRead", "alarms", "scripting"],
+    "host_permissions": ["<all_urls>"],
     "content_scripts": [
       {
         "js": ["init.js", "content.js"],
         "all_frames": true,
+        "match_about_blank": true,
+        "match_origin_as_fallback": true,
+        "run_at": "document_start",
         "matches": ["<all_urls>"]
       }
     ],

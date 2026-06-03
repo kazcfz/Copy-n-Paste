@@ -67,6 +67,10 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 4. Select the extracted extension folder
 <br><br>
 
+## Testing
+Testing instructions for local smoke checks, authenticated real-site validation, and manual diagnostics are in [TESTING.md](TESTING.md).
+<br><br>
+
 ## Bugs and Feature requests
 Please first check for [existing and closed issues](https://github.com/kazcfz/Paste-Image-Uploader/issues?q=is%3Aissue).<br>
 If it's new, please [create a new issue](https://github.com/kazcfz/Paste-Image-Uploader/issues/new/choose).

@@ -1,2 +1,5 @@
 dist/
 node_modules/
+playwright-profiles/
+test-results/
+playwright-report/

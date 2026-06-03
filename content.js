@@ -91,6 +91,17 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
                 if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
                 const blob = new Blob([code], { type: 'text/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
+                s.onload = () => URL.revokeObjectURL(blobUrl);
+                s.onerror = () => {
+                    try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                    try { s.remove(); } catch (e) { }
+
+                    const fallback = targetDoc.createElement('script');
+                    if (id) fallback.id = id;
+                    if (attrs) Object.keys(attrs).forEach(k => fallback.setAttribute(k, attrs[k]));
+                    try { fallback.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { fallback.src = safeGetURL(scriptPath) }
+                    targetDoc.head.appendChild(fallback);
+                };
                 try { s.setAttribute('src', blobUrl); } catch (e) { s.src = blobUrl }
                 targetDoc.head.appendChild(s);
             } catch (e) {
@@ -119,54 +130,196 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
     }
 }
 
-// Inject init.js to the DOM: use extension URL for Google Docs/Slides (their CSP blocks blob:),
-// otherwise use blob injection to avoid TrustedScriptURL enforcement on other pages.
-if (!document.head.querySelector('CnP-init')) {
+function injectInitScriptTag() {
+    if (document.getElementById('CnP-init') || document.documentElement.dataset.cnpPageHookLoaded)
+        return;
+
     const initJS = document.createElement('script');
     initJS.id = `CnP-init`;
     initJS.setAttribute('overlayhtml', safeGetURL('overlay.html'));
 
-    const isGoogleDocs = (location.hostname || '').includes('docs.google') || (location.hostname || '').includes('slides.google');
-    if (isGoogleDocs) {
-        // Docs blocks blob:, but may allow extension's chrome-extension:// URL (depends on installed extension id)
-        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
-        document.head.appendChild(initJS);
-    } else {
-        // Try to fetch the extension script and inject via blob URL
-        try {
-            fetch(safeGetURL('init.js'))
-                .then(response => response.text())
-                .then(code => {
-                    try {
-                        const blob = new Blob([code], { type: 'text/javascript' });
-                        const blobUrl = URL.createObjectURL(blob);
-                        initJS.setAttribute('src', blobUrl);
-                    } catch (e) {
-                        // fallback to direct extension URL
-                        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
-                    }
-                    document.head.appendChild(initJS);
-                })
-                .catch(err => {
-                    // Fallback: append script with extension URL
-                    try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
-                    document.head.appendChild(initJS);
-                });
-        } catch (e) {
-            try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
-            document.head.appendChild(initJS);
-        }
-    }
+    try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
+    const scriptParent = document.head || document.documentElement;
+    if (scriptParent)
+        scriptParent.appendChild(initJS);
 }
+
+function requestMainWorldInit() {
+    return new Promise(resolve => {
+        try {
+            if (document.documentElement.dataset.cnpPageHookLoaded) {
+                resolve(true);
+                return;
+            }
+
+            if (typeof chrome === 'undefined' || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+                resolve(false);
+                return;
+            }
+
+            chrome.runtime.sendMessage({ Type: 'CnP-inject-main-world' }, response => {
+                try {
+                    if (chrome.runtime.lastError)
+                        resolve(false);
+                    else
+                        resolve(!!(response && response.ok));
+                } catch (e) { resolve(false) }
+            });
+        } catch (e) { resolve(false) }
+    });
+}
+
+// Inject init.js into the page world as early as possible. Chromium uses
+// chrome.scripting for MAIN-world injection; Firefox and fallback paths use a
+// script tag when the page hook marker is still missing.
+requestMainWorldInit().then(ok => {
+    const fallbackDelay = ok ? 100 : 0;
+    setTimeout(() => {
+        if (!document.documentElement.dataset.cnpPageHookLoaded)
+            injectInitScriptTag();
+    }, fallbackDelay);
+});
+
+function isPageFileInput(node) {
+    return node && node.matches && node.matches("input[type='file']") && node.id !== 'cnp-overlay-file-input' && !node.id.toLowerCase().startsWith('cnp');
+}
+
+function uploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.id,
+        element.getAttribute('class'),
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('data-testid'),
+        element.getAttribute('data-test-id'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function ignoredUploadSurfaceText(element) {
+    if (!element || !element.getAttribute)
+        return '';
+
+    return [
+        element.getAttribute('aria-label'),
+        element.getAttribute('title'),
+        element.getAttribute('name'),
+        element.getAttribute('role'),
+        (element.innerText || element.textContent || '').slice(0, 200)
+    ].filter(Boolean).join(' ').replace(/[-_]+/g, ' ');
+}
+
+function isIgnoredUploadSurface(element) {
+    return /\bmeta\s+ai\s+business\s+assistant\b|\bmeta\s+ai\b/i.test(ignoredUploadSurfaceText(element));
+}
+
+function hasActiveUserGesture() {
+    return !navigator.userActivation || navigator.userActivation.isActive;
+}
+
+function hasRecentPageActivation(fileInput) {
+    const activatedAt = Number(fileInput.dataset.cnpPageActivation || 0);
+    return activatedAt > 0 && Date.now() - activatedAt < 1000;
+}
+
+function hasRecentSuppressedFileActivation(fileInput) {
+    const inputSuppressedAt = Number(fileInput.dataset.cnpSuppressNextFileActivation || 0);
+    const documentSuppressedAt = Number(document.documentElement.dataset.cnpSuppressFileActivation || 0);
+    return Date.now() - Math.max(inputSuppressedAt, documentSuppressedAt) < 1500;
+}
+
+function hasRecentPickerlessHandoff() {
+    return Date.now() - Number(document.documentElement.dataset.cnpPickerlessHandoff || 0) < 1500;
+}
+
+function findClickedFileInput(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+    const pathInput = path.find(node => isPageFileInput(node));
+    if (pathInput)
+        return pathInput;
+
+    const label = path.find(node => node && node.tagName === 'LABEL');
+    if (!label)
+        return null;
+
+    if (isPageFileInput(label.control))
+        return label.control;
+
+    if (label.querySelector) {
+        const nestedInput = label.querySelector("input[type='file']");
+        if (isPageFileInput(nestedInput))
+            return nestedInput;
+    }
+
+    return null;
+}
+
+function openOverlayFromCapturedClick(event, fileInput) {
+    setupcreateOverlay(fileInput);
+    createOverlay({
+        target: fileInput,
+        preventDefault: () => {
+            if (event.cancelable !== false)
+                event.preventDefault();
+        },
+        stopPropagation: () => {
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function')
+                event.stopImmediatePropagation();
+        }
+    });
+}
+
+function installFileInputActivationListeners() {
+    if (document.cnpFileInputActivationListeners)
+        return;
+
+    document.cnpFileInputActivationListeners = true;
+    document.addEventListener('cnp-page-file-input-activated', event => {
+        const fileInput = isPageFileInput(event.target) ? event.target : null;
+        if (!fileInput || !hasRecentPageActivation(fileInput) || !hasActiveUserGesture())
+            return;
+
+        openOverlayFromCapturedClick(event, fileInput);
+    }, true);
+
+    document.addEventListener("click", event => {
+        const fileInput = findClickedFileInput(event);
+        if (!fileInput)
+            return;
+
+        if (event.isTrusted === false && hasRecentSuppressedFileActivation(fileInput)) {
+            if (event.cancelable !== false)
+                event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function')
+                event.stopImmediatePropagation();
+            return;
+        }
+
+        if (event.isTrusted === false && hasRecentPickerlessHandoff())
+            return;
+
+        if (event.isTrusted === false && !hasRecentPageActivation(fileInput) && !hasActiveUserGesture())
+            return;
+
+        if (fileInput.dataset.cnpNativePickerBypass && Date.now() - Number(fileInput.dataset.cnpNativePickerBypass) < 1500)
+            return;
+
+        openOverlayFromCapturedClick(event, fileInput);
+    }, true);
+}
+
+installFileInputActivationListeners();
 
 function afterDOMLoaded() {
     // Prep all input file elements
-    if (!document.cnpClickListener)
-        document.addEventListener("click", event => {
-            document.cnpClickListener = true;
-            if (event.target.matches("input[type='file']"))
-                setupcreateOverlay(event.target);
-        }, true);
+    installFileInputActivationListeners();
 
     // Run through DOM to detect:
     document.querySelectorAll('*').forEach((element, index) => {
@@ -210,25 +363,26 @@ function afterDOMLoaded() {
                     }
 
                     // iframes
-                    else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
+                    else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe")) {
                         if (node.contentDocument) {
                             // Inject scripts into dynamically added iframe using blob URLs
                             node.classList.add(`CnP-mutatedIframe-${index}`);
                             fetchAndInjectScript(node.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
                             fetchAndInjectScript(node.contentDocument, 'content.js', `CnP-mutatedIframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
                         }
+                    }
 
-                        // Checks if sub-nodes/child are input file elements
-                        else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes())
-                            node.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
+                    // Checks if sub-nodes/child are input file elements
+                    else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes())
+                        node.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
 
-                        // If the added node is a document fragment, it may contain shadow hosts
-                        else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-                            node.childNodes.forEach(childNode => {
-                                if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot)
-                                    childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
-                            });
-                        }
+                    // If the added node is a document fragment, it may contain shadow hosts
+                    else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+                        node.childNodes.forEach(childNode => {
+                            if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot)
+                                childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
+                        });
+                    }
                 });
             });
         });
@@ -237,40 +391,4 @@ function afterDOMLoaded() {
             document.body.cnpMutationObserver = true;
         } catch (error) { logging(error) }
     }
-
-    // Message listener between window.top and iframes
-    if (!window.cnpMessageListener)
-        window.addEventListener('message', event => {
-            window.cnpMessageListener = true;
-            // Execute paste events from top level since iframes can't
-            if (event.data.Type == 'paste') {
-                if (!event.data.iframe)
-                    document.execCommand('paste');
-                else {
-                    try {
-                        let el = null;
-                        // event.data.iframe may be an id or a class — try id first
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentDocument && typeof el.contentDocument.execCommand === 'function')
-                            el.contentDocument.execCommand('paste');
-                        else
-                            logging('iframe for paste not available');
-                    } catch (error) {
-                        logging(error);
-                        try { noImage() } catch (error) { logging(error) }
-                    }
-                }
-            } else if (event.data.Type == 'getURL')
-                if (event.data.iframe) {
-                    try {
-                        let el = null;
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentWindow && typeof el.contentWindow.postMessage === 'function')
-                            el.contentWindow.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
-                        else
-                            logging('iframe for getURL not available');
-                    } catch (error) { logging(error) }
-                } else
-                    window.top.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
-        });
 }
