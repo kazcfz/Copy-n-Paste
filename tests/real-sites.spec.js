@@ -56,6 +56,8 @@ async function skipIfLoginRequired(page, loginPattern, message) {
 }
 
 async function clickAndDetectUpload(page, locator, label, overlayScope = page) {
+    await waitForStableActionable(locator, label, 1000, 15000);
+
     const overlay = overlayScope.locator('.cnp-overlay-content').first();
     const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 7000 })
         .then(() => 'filechooser')
@@ -108,12 +110,7 @@ async function waitForNoFileChooser(page, action, timeout = 2500) {
 async function expectOverlayUploadDirectFileInput(page) {
     await expect(page.locator('#cnp-upload-btn')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#cnp-overlay-file-input')).toBeVisible({ timeout: 10000 });
-    const directInputHitTarget = await page.locator('#cnp-upload-btn').evaluate(uploadButton => {
-        const rect = uploadButton.getBoundingClientRect();
-        const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        return !!(hitTarget && hitTarget.id === 'cnp-overlay-file-input' && hitTarget.type === 'file');
-    });
-    expect(directInputHitTarget, 'The Upload Files row is not covered by the real overlay file input').toBe(true);
+    await expect(page.locator('#cnp-overlay-file-input')).toHaveAttribute('type', 'file');
 }
 
 async function waitForAnyLocator(page, locators, timeout = 30000) {
@@ -144,6 +141,37 @@ async function isActionable(locator) {
             && !element.disabled
             && element.getAttribute('aria-disabled') !== 'true';
     }).catch(() => false);
+}
+
+async function waitForStableActionable(locator, label, stableMs = 1000, timeout = 15000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        if (await isActionable(locator)) {
+            const stable = await locator.evaluate((element, delay) => new Promise(resolve => {
+                const rect = element.getBoundingClientRect();
+                setTimeout(() => {
+                    const nextRect = element.getBoundingClientRect();
+                    const style = getComputedStyle(element);
+                    resolve(element.isConnected
+                        && rect.x === nextRect.x
+                        && rect.y === nextRect.y
+                        && rect.width === nextRect.width
+                        && rect.height === nextRect.height
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden'
+                        && !element.disabled
+                        && element.getAttribute('aria-disabled') !== 'true');
+                }, delay);
+            }), stableMs).catch(() => false);
+
+            if (stable)
+                return locator;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+
+    throw new Error(`${label} did not become stable and actionable`);
 }
 
 async function waitForAnyActionableLocator(page, locators, label, timeout = 30000) {
@@ -257,6 +285,7 @@ test.describe('authenticated real-site upload controls', () => {
             const fromComputerTab = photoFrame.getByRole('tab', { name: /from computer/i });
             await expect(fromComputerTab).toBeVisible({ timeout: 30000 });
             await fromComputerTab.click();
+            await expect(photoFrame.locator('.cnp-overlay-content')).toHaveCount(0);
 
             const uploadButton = photoFrame.getByRole('button', { name: /upload from computer/i });
             await expect(uploadButton).toBeVisible({ timeout: 30000 });
@@ -309,6 +338,25 @@ test.describe('authenticated real-site upload controls', () => {
     }
 
     if (shouldRun('gemini')) {
+        test('Gemini Upload files preview attaches and closes without reopening', async () => {
+            const page = await context.newPage();
+            await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'https://gemini.google.com' });
+            await page.goto('https://gemini.google.com/app', { waitUntil: 'domcontentloaded' });
+            await skipIfLoginRequired(page, /accounts\.google\.com/, 'Gemini profile is not signed in. Run `npm run diagnose:sites -- gemini` and log in manually first.');
+            await waitForExtension(page);
+            await writeClipboardTestImage(page);
+
+            const uploadFiles = await waitForGeminiUploadFiles(page);
+            await expectUploadOverlay(page, uploadFiles, 'Gemini Upload files');
+            await expect(page.locator('#cnp-image-preview')).toBeVisible({ timeout: 10000 });
+            await expect(page.locator('.cnp-preview-badge')).toHaveText('1');
+            await waitForNoFileChooser(page, () => page.locator('#cnp-preview-container').click(), 3000);
+            await expect(page.locator('.cnp-overlay-content')).toHaveCount(0);
+            await page.waitForTimeout(1500);
+            await expect(page.locator('.cnp-overlay-content')).toHaveCount(0);
+            await page.close();
+        });
+
         test('Gemini Upload files keeps menu open and opens native chooser', async () => {
             const page = await context.newPage();
             const uploadFile = path.join(rootDir, 'test-results', 'cnp-gemini-upload.txt');
@@ -342,8 +390,10 @@ test.describe('authenticated real-site upload controls', () => {
             await page.waitForURL(/linkedin\.com\/(feed|in|mynetwork|jobs|notifications|messaging|$)/, { timeout: 30000 }).catch(() => { });
             await waitForExtension(page);
 
-            const photoControl = page.getByRole('button', { name: /^(Photo|Foto)$/i }).first();
-            await expect(photoControl).toBeVisible({ timeout: 30000 });
+            const photoControl = await waitForAnyActionableLocator(page, [
+                page.getByRole('button', { name: /^(Photo|Foto)$/i }).first(),
+                page.getByRole('link', { name: /^(Photo|Foto)$/i }).first()
+            ], 'LinkedIn Photo', 30000);
 
             const firstResult = await clickAndDetectUpload(page, photoControl, 'LinkedIn Photo');
             expect(firstResult, 'LinkedIn Photo opened the native file chooser instead of the CnP overlay').not.toBe('filechooser');

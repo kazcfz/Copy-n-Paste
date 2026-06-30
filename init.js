@@ -2,34 +2,41 @@
 Initializes global variables and functions.
 */
 
-// Detect and override input elements that uses .click()
-var oriClick = HTMLElement.prototype.click;
-HTMLElement.prototype.click = function (...args) {
-    if (this.matches("input[type='file']") && !this.id.toLowerCase().startsWith('cnp')) {
-        setupcreateOverlay(this);
-        oriClick.call(this, ...args);
-    } else
-        return oriClick.apply(this, arguments);
-};
-
-// Detect and override input elements that uses .showPicker()
-var oriShowPicker = HTMLInputElement.prototype.showPicker;
-HTMLInputElement.prototype.showPicker = function () {
-    if (this.matches("input[type='file']"))
-        this.click();
-    else
-        return oriShowPicker.apply(this, arguments);
-};
-
 // Global variables
 var clientX = 0;
 var clientY = 0;
 var overlayID = null;
+var originalInput = null;
 var ctrlVdata = null;
 var currentObjectURL = null;
 var reader = null; //Paste event listener's
 var isFirefox = typeof InstallTrigger !== 'undefined';
 var isChrome = !!window.chrome && (!!window.chrome.webstore || !!window.chrome.runtime);
+var cnpSuppressedFileInputs = new WeakSet();
+var cnpObservedRoots = new WeakSet();
+var cnpIgnoreOutsideClicksUntil = 0;
+var cnpActivationUntil = 0;
+var cnpActivationFileInputCount = 0;
+var cnpActivationPoint = null;
+var cnpOverlayOpening = false;
+var cnpAssigningFilesUntil = 0;
+
+const cnpClipboardExtensionByType = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'application/pdf': 'pdf',
+    'video/mp4': 'mp4',
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav'
+};
+
+const CNP_BRIDGE_CHANNEL = 'copy-n-paste:clipboard';
+const CNP_PAGE_REQUEST = 'page-request';
+const CNP_CONTENT_RESPONSE = 'content-response';
+
+document.documentElement.dataset.cnpInitLoaded = 'true';
 
 // Safe Trusted Types helper: try to create and memoize a policy, but fall back to no-op shim
 function getTrustedPolicy(name, options) {
@@ -45,6 +52,34 @@ function safeGetURL(path) {
             return chrome.runtime.getURL(path);
     } catch (e) { }
     return path;
+}
+
+function isExtensionURL(url) {
+    try {
+        const parsed = new URL(url, location.href);
+        return parsed.protocol === 'chrome-extension:' || parsed.protocol === 'moz-extension:';
+    } catch (e) { }
+    return false;
+}
+
+function getExtensionResourceURL(path) {
+    try {
+        const runtimeURL = safeGetURL(path);
+        if (runtimeURL && runtimeURL !== path && isExtensionURL(runtimeURL))
+            return runtimeURL;
+    } catch (e) { }
+
+    const script = document.querySelector('script#CnP-init[cnpbaseurl], script[id^="CnP-init-iframe"][cnpbaseurl], script[id^="CnP-iframe"][cnpbaseurl], script[id^="CnP-mutatedIframe"][cnpbaseurl]');
+    if (script) {
+        const baseURL = script.getAttribute('cnpbaseurl');
+        if (baseURL && isExtensionURL(baseURL)) {
+            try {
+                return new URL(path, baseURL).href;
+            } catch (e) { }
+        }
+    }
+
+    return null;
 }
 
 // Feature detection helpers (same logic as content.js)
@@ -80,6 +115,442 @@ function docAllowsBlobScripts() {
     } catch (e) { return true }
 }
 
+function isFileInputElement(node) {
+    return !!(node && node.tagName === 'INPUT' && node.type === 'file');
+}
+
+function isCnPFileInput(node) {
+    return isFileInputElement(node) && node.id && node.id.toLowerCase().startsWith('cnp');
+}
+
+function fileInputFromEvent(event) {
+    const path = event && event.composedPath ? event.composedPath() : [];
+    const pathInput = path.find(node => isFileInputElement(node));
+    if (pathInput)
+        return pathInput;
+
+    if (isFileInputElement(event && event.target))
+        return event.target;
+
+    return null;
+}
+
+function stopPageFileInputEvent(event) {
+    try { event.stopImmediatePropagation() } catch (e) { }
+}
+
+function suppressFollowUpFilePicker(input) {
+    if (!input)
+        return;
+
+    cnpSuppressedFileInputs.add(input);
+    setTimeout(() => cnpSuppressedFileInputs.delete(input), 1000);
+}
+
+function restoreFileInputDisabledState(input) {
+    if (!input || !input.cnpTemporarilyDisabled)
+        return;
+
+    input.disabled = !!input.cnpOriginalDisabled;
+    input.cnpTemporarilyDisabled = false;
+}
+
+function isWithinCnPOverlay(node) {
+    try {
+        return !!(node && node.closest && node.closest('.cnp-overlay'));
+    } catch (e) { }
+    return false;
+}
+
+function markTrustedActivation(event) {
+    const path = event && event.composedPath ? event.composedPath() : [event && event.target];
+    if (!event || !event.isTrusted || path.some(isWithinCnPOverlay))
+        return;
+
+    cnpActivationUntil = Date.now() + 500;
+    cnpActivationFileInputCount = document.querySelectorAll("input[type='file']").length;
+    cnpActivationPoint = typeof event.clientX === 'number' && typeof event.clientY === 'number'
+        ? { x: event.clientX, y: event.clientY }
+        : null;
+}
+
+function activationCanClaimNewFileInput() {
+    return Date.now() < cnpActivationUntil
+        && Date.now() >= cnpAssigningFilesUntil
+        && cnpActivationFileInputCount === 0;
+}
+
+function preparePendingFileInput(input) {
+    if (!isFileInputElement(input) || isCnPFileInput(input) || !activationCanClaimNewFileInput())
+        return;
+
+    cnpActivationUntil = 0;
+    setupcreateOverlay(input);
+    input.cnpActivationPoint = cnpActivationPoint;
+
+    if (input.cnpPendingActivationGuard)
+        return;
+
+    input.cnpPendingActivationGuard = true;
+    if (!input.cnpTemporarilyDisabled) {
+        input.cnpOriginalDisabled = !!input.disabled;
+        input.cnpTemporarilyDisabled = true;
+    }
+    input.disabled = true;
+    setTimeout(() => {
+        const shouldOpenOverlay = input.isConnected
+            && !document.querySelector('.cnp-overlay')
+            && !cnpOverlayOpening
+            && Date.now() >= cnpAssigningFilesUntil;
+
+        restoreFileInputDisabledState(input);
+        input.cnpPendingActivationGuard = false;
+
+        if (shouldOpenOverlay)
+            openOverlayForInput(input, { preventDefault() { } });
+    }, 75);
+}
+
+function handleFileInputActivation(input, event) {
+    if (!isFileInputElement(input) || isCnPFileInput(input))
+        return false;
+
+    if (Date.now() < cnpAssigningFilesUntil && !(event && event.isTrusted)) {
+        if (event && event.preventDefault)
+            event.preventDefault();
+        if (event)
+            stopPageFileInputEvent(event);
+        return true;
+    }
+
+    if (cnpSuppressedFileInputs.has(input)) {
+        if (event && event.preventDefault)
+            event.preventDefault();
+        if (event)
+            stopPageFileInputEvent(event);
+        return true;
+    }
+
+    setupcreateOverlay(input);
+    openOverlayForInput(input, event);
+    if (event)
+        stopPageFileInputEvent(event);
+    return true;
+}
+
+function scanUploadRoot(root) {
+    try {
+        if (isFileInputElement(root)) {
+            setupcreateOverlay(root);
+            preparePendingFileInput(root);
+        }
+        if (root && root.querySelectorAll)
+            root.querySelectorAll("input[type='file']").forEach(fileInput => {
+                setupcreateOverlay(fileInput);
+                preparePendingFileInput(fileInput);
+            });
+    } catch (e) { logging(e) }
+}
+
+function observeUploadRoot(root) {
+    if (!root || cnpObservedRoots.has(root))
+        return;
+
+    cnpObservedRoots.add(root);
+    scanUploadRoot(root);
+
+    try {
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => scanUploadRoot(node));
+            });
+        });
+        observer.observe(root, { childList: true, subtree: true });
+    } catch (e) { logging(e) }
+}
+
+function acceptFromPickerOptions(options) {
+    const accept = [];
+    try {
+        (options && options.types || []).forEach(type => {
+            Object.keys(type.accept || {}).forEach(mimeType => {
+                accept.push(mimeType);
+                (type.accept[mimeType] || []).forEach(extension => accept.push(extension));
+            });
+        });
+    } catch (e) { }
+    return [...new Set(accept)].join(',');
+}
+
+function fileToHandle(file) {
+    const handle = {
+        kind: 'file',
+        name: file.name,
+        getFile: () => Promise.resolve(file),
+        isSameEntry: other => Promise.resolve(other === handle)
+    };
+    return handle;
+}
+
+function cnpTimestampedFileName(type) {
+    const extension = cnpClipboardExtensionByType[type] || (type && type.includes('/') ? type.split('/').pop() : 'bin');
+    return 'CnP_' + new Date().toLocaleString('en-GB', { hour12: false }).replace(/, /g, '_').replace(/[\/: ]/g, '') + '.' + extension;
+}
+
+function cnpMessageTargetOrigin() {
+    return location.origin === 'null' ? '*' : location.origin;
+}
+
+function isSameWindowMessage(event) {
+    if (event.source !== window)
+        return false;
+
+    if (location.origin !== 'null' && event.origin !== location.origin)
+        return false;
+
+    return true;
+}
+
+function normalizeClipboardFile(file) {
+    if (file.name && file.name !== 'image.png')
+        return file;
+
+    return new File([file], cnpTimestampedFileName(file.type), { type: file.type, lastModified: file.lastModified });
+}
+
+function uniqueFiles(files) {
+    const seen = new Set();
+    return [...files].filter(file => {
+        const key = [file.name, file.type, file.size].join('|');
+        if (seen.has(key))
+            return false;
+
+        seen.add(key);
+        return true;
+    });
+}
+
+function requestClipboardFilesForOverlay(requestedOverlayID) {
+    const requestId = crypto.randomUUID();
+
+    const timeout = setTimeout(() => {
+        window.removeEventListener('message', onMessage);
+        noImage(requestedOverlayID);
+    }, 1000);
+
+    function onMessage(event) {
+        if (!isSameWindowMessage(event))
+            return;
+
+        const data = event.data;
+        if (!data
+            || data.channel !== CNP_BRIDGE_CHANNEL
+            || data.direction !== CNP_CONTENT_RESPONSE
+            || data.type !== 'clipboard-files'
+            || data.requestId !== requestId
+            || data.overlayId !== requestedOverlayID)
+            return;
+
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        renderClipboardFiles(data.files || [], requestedOverlayID);
+    }
+
+    window.addEventListener('message', onMessage);
+    window.postMessage({
+        channel: CNP_BRIDGE_CHANNEL,
+        direction: CNP_PAGE_REQUEST,
+        type: 'read-clipboard-files',
+        requestId,
+        overlayId: requestedOverlayID
+    }, cnpMessageTargetOrigin());
+}
+
+async function renderClipboardFiles(files, requestedOverlayID) {
+    if (overlayID !== requestedOverlayID)
+        return;
+
+    const overlay = document.getElementById(requestedOverlayID);
+    if (!overlay)
+        return;
+
+    const excludedFolders = uniqueFiles(files)
+        .filter(file => !(file.size === 0 && file.type === ''))
+        .map(normalizeClipboardFile);
+    if (excludedFolders.length === 0) {
+        noImage(requestedOverlayID);
+        return;
+    }
+
+    if (overlay.dataset.cnpPreviewRendered === 'true')
+        return;
+    overlay.dataset.cnpPreviewRendered = 'true';
+
+    const badge = overlay.querySelector('.cnp-preview-badge');
+    const fileList = new DataTransfer();
+    [...originalInput.files].forEach(file => fileList.items.add(file));
+
+    excludedFolders.forEach(file => {
+        badge.title += file.name + '\n';
+        badge.innerText = parseInt(badge.innerText) + 1;
+        if (parseInt(badge.innerText) > 1)
+            badge.style.display = 'inline-block';
+        fileList.items.add(file);
+    });
+
+    const firstFile = excludedFolders[0];
+    await new Promise(resolve => {
+        reader = new FileReader();
+        reader.onload = readerEvent => {
+            previewImage('', readerEvent, firstFile, requestedOverlayID);
+            resolve();
+        };
+        reader.onerror = () => resolve();
+        reader.onabort = () => resolve();
+        reader.readAsArrayBuffer(firstFile);
+    });
+
+    const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
+    if (imagePreviewContainer.querySelector('#cnp-image-preview')) {
+        ctrlVdata = fileList;
+        imagePreviewContainer.style.cursor = 'pointer';
+        imagePreviewContainer.onclick = () => assignFilesToOriginalInput(fileList.files);
+    } else
+        noImage(requestedOverlayID);
+}
+
+function openOverlayFilePicker(options) {
+    return new Promise((resolve, reject) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'cnp-virtual-picker-input';
+        input.accept = acceptFromPickerOptions(options);
+        input.multiple = !!(options && options.multiple);
+        input.style.display = 'none';
+        input.cnpPickerSettled = false;
+        input.cnpPickerReject = reject;
+        input.addEventListener('change', () => {
+            input.cnpPickerSettled = true;
+            resolve([...input.files].map(fileToHandle));
+            input.remove();
+        }, { once: true });
+
+        (document.body || document.documentElement).appendChild(input);
+        openOverlayForInput(input, { preventDefault() { } });
+    });
+}
+
+function installPageUploadHooks() {
+    if (window.cnpPageUploadHooksInstalled)
+        return;
+    window.cnpPageUploadHooksInstalled = true;
+
+    ['pointerdown', 'mousedown', 'click', 'keydown'].forEach(type => document.addEventListener(type, markTrustedActivation, true));
+
+    document.addEventListener('click', event => {
+        const input = fileInputFromEvent(event);
+        if (!input)
+            return;
+
+        if (isCnPFileInput(input)) {
+            stopPageFileInputEvent(event);
+            return;
+        }
+
+        handleFileInputActivation(input, event);
+    }, true);
+
+    const originalClick = HTMLElement.prototype.click;
+    HTMLElement.prototype.click = function (...args) {
+        if (handleFileInputActivation(this, null))
+            return undefined;
+        return originalClick.apply(this, args);
+    };
+
+    const originalShowPicker = HTMLInputElement.prototype.showPicker;
+    if (typeof originalShowPicker === 'function')
+        HTMLInputElement.prototype.showPicker = function (...args) {
+            if (handleFileInputActivation(this, null))
+                return undefined;
+            return originalShowPicker.apply(this, args);
+        };
+
+    const originalShowOpenFilePicker = window.showOpenFilePicker;
+    if (typeof originalShowOpenFilePicker === 'function')
+        window.showOpenFilePicker = function (options) {
+            return openOverlayFilePicker(options);
+        };
+
+    const originalCreateElement = Document.prototype.createElement;
+    Document.prototype.createElement = function (...args) {
+        const element = originalCreateElement.apply(this, args);
+        if (String(args[0]).toLowerCase() === 'input')
+            queueMicrotask(() => {
+                if (isFileInputElement(element)) {
+                    setupcreateOverlay(element);
+                    preparePendingFileInput(element);
+                }
+            });
+        return element;
+    };
+
+    const originalAppendChild = Node.prototype.appendChild;
+    Node.prototype.appendChild = function (...args) {
+        const node = originalAppendChild.apply(this, args);
+        scanUploadRoot(node);
+        return node;
+    };
+
+    const originalInsertBefore = Node.prototype.insertBefore;
+    Node.prototype.insertBefore = function (...args) {
+        const node = originalInsertBefore.apply(this, args);
+        scanUploadRoot(node);
+        return node;
+    };
+
+    const originalReplaceChild = Node.prototype.replaceChild;
+    Node.prototype.replaceChild = function (...args) {
+        const node = originalReplaceChild.apply(this, args);
+        scanUploadRoot(args[0]);
+        return node;
+    };
+
+    const inputTypeDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'type');
+    if (inputTypeDescriptor && inputTypeDescriptor.get && inputTypeDescriptor.set)
+        Object.defineProperty(HTMLInputElement.prototype, 'type', {
+            configurable: inputTypeDescriptor.configurable,
+            enumerable: inputTypeDescriptor.enumerable,
+            get() { return inputTypeDescriptor.get.call(this); },
+            set(value) {
+                inputTypeDescriptor.set.call(this, value);
+                if (String(value).toLowerCase() === 'file') {
+                    setupcreateOverlay(this);
+                    preparePendingFileInput(this);
+                }
+            }
+        });
+
+    const originalSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (...args) {
+        const result = originalSetAttribute.apply(this, args);
+        if (this.tagName === 'INPUT' && String(args[0]).toLowerCase() === 'type' && String(args[1]).toLowerCase() === 'file') {
+            setupcreateOverlay(this);
+            preparePendingFileInput(this);
+        }
+        return result;
+    };
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    if (typeof originalAttachShadow === 'function')
+        Element.prototype.attachShadow = function (...args) {
+            const root = originalAttachShadow.apply(this, args);
+            observeUploadRoot(root);
+            return root;
+        };
+
+    observeUploadRoot(document);
+}
+
 // Capture cursor coords for overlay position
 if (!document.cnpCoordListener)
     document.addEventListener('mousemove', event => {
@@ -91,9 +562,38 @@ if (!document.cnpCoordListener)
 // Sets a node up for CnP Overlay
 function setupcreateOverlay(node) {
     if (node.id != "cnp-overlay-file-input" && !node.dataset.cnpCreateListener) {
-        node.addEventListener("click", createOverlay);
+        node.addEventListener("click", createOverlay, true);
         node.dataset.cnpCreateListener = "true";
     }
+}
+
+installPageUploadHooks();
+
+function assignFilesToOriginalInput(files) {
+    if (!originalInput)
+        return;
+
+    cnpAssigningFilesUntil = Date.now() + 75;
+    try {
+        restoreFileInputDisabledState(originalInput);
+        const fileList = new DataTransfer();
+        [...files].forEach(file => fileList.items.add(file));
+        suppressFollowUpFilePicker(originalInput);
+        originalInput.files = fileList.files;
+        triggerChangeEvent(originalInput);
+    } finally {
+        closeOverlay();
+        setTimeout(() => {
+            if (Date.now() >= cnpAssigningFilesUntil)
+                cnpAssigningFilesUntil = 0;
+        }, 75);
+    }
+}
+
+function appendFilesToOriginalInput(files) {
+    const fileList = new DataTransfer();
+    [...originalInput.files, ...files].forEach(file => fileList.items.add(file));
+    assignFilesToOriginalInput(fileList.files);
 }
 
 // Ctrl V listener
@@ -125,9 +625,7 @@ async function ctrlV(event) {
                 });
             await Promise.all(readPromise);
 
-            originalInput.files = fileList.files;
-            triggerChangeEvent(originalInput);
-            closeOverlay();
+            assignFilesToOriginalInput(fileList.files);
         }
     }
 }
@@ -146,6 +644,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
         if (blob.type.split('/')[0] == 'image') {
             imagePreview = document.createElement('img');
             imagePreview.id = 'cnp-image-preview';
+            stylePreviewElement(imagePreview);
             currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], { type: blob.type }));
             imagePreview.src = currentObjectURL;
             try { imagePreviewContainer.appendChild(imagePreview) } catch (error) { logging(error) }
@@ -166,6 +665,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
             spinner.style.display = 'none';
             imagePreview = document.createElement('iframe');
             imagePreview.id = 'cnp-image-preview';
+            stylePreviewElement(imagePreview);
             imagePreview.type = blob.type;
             currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], { type: blob.type })) + '#scrollbar=0&view=FitH,top&page=1&toolbar=0&statusbar=0&navpanes=0';
             imagePreview.src = currentObjectURL;
@@ -177,6 +677,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
             spinner.style.display = 'none';
             imagePreview = document.createElement('video');
             imagePreview.id = 'cnp-image-preview';
+            stylePreviewElement(imagePreview);
             imagePreview.preload = "metadata";
             imagePreview.type = blob.type;
             currentObjectURL = window.URL.createObjectURL(new Blob([readerEvent.target.result], { type: blob.type }));
@@ -202,22 +703,9 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
     function previewGenericFile(fileTypeIcon) {
         imagePreview = document.createElement('img');
         imagePreview.id = 'cnp-image-preview';
+        stylePreviewElement(imagePreview);
         imagePreview.style.height = '50%';
-        try {
-            imagePreview.src = safeGetURL(`media/${fileTypeIcon}.webp`);
-        } catch {
-            try {
-                if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                    window.top.postMessage({ 'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `media/${fileTypeIcon}.webp` }, '*');
-                else
-                    window.top.postMessage({ 'Type': 'getURL', 'Path': `media/${fileTypeIcon}.webp` }, '*');
-
-                window.onmessage = event => {
-                    if (event.data.Type == 'getURL-response')
-                        imagePreview.src = event.data.URL;
-                }
-            } catch (error) { logging(error) }
-        }
+        imagePreview.src = getExtensionResourceURL(`media/${fileTypeIcon}.webp`) || `media/${fileTypeIcon}.webp`;
         try { imagePreviewContainer.appendChild(imagePreview) } catch (error) { logging(error) }
 
         let title = document.createElement('span');
@@ -246,22 +734,82 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
     //   fileName = fileName.replace('.png', '.gif');
 }
 
-// When prepped input elements are clicked
+function stylePreviewElement(element) {
+    Object.assign(element.style, {
+        border: '0',
+        margin: '0',
+        maxHeight: '100%',
+        maxWidth: '100%',
+        objectFit: 'cover',
+        pointerEvents: 'none',
+        position: 'relative'
+    });
+}
+
 function createOverlay(event) {
+    return openOverlayForInput(event.currentTarget || event.target, event);
+}
+
+function overlayAnchorPoint(input, event, overlayContent) {
+    const margin = 12;
+    const overlayWidth = overlayContent.offsetWidth || 272;
+    const overlayHeight = overlayContent.offsetHeight || 210;
+    let point = null;
+
+    if (event && typeof event.clientX === 'number' && typeof event.clientY === 'number')
+        point = { x: event.clientX, y: event.clientY, pointer: true };
+    else if (input && input.cnpActivationPoint)
+        point = { x: input.cnpActivationPoint.x, y: input.cnpActivationPoint.y, pointer: true };
+    else if (input && input.getBoundingClientRect) {
+        const rect = input.getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0)
+            point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, pointer: false };
+    }
+
+    if (!point && (clientX || clientY))
+        point = { x: clientX, y: clientY, pointer: true };
+
+    if (!point)
+        point = { x: innerWidth / 2, y: innerHeight / 2, pointer: false };
+
+    let centerX = point.x;
+    let centerY = point.y;
+
+    if (point.pointer) {
+        centerY = point.y - overlayHeight / 2 - margin;
+        if (centerY - overlayHeight / 2 < margin)
+            centerY = point.y + overlayHeight / 2 + margin;
+    }
+
+    centerX = Math.min(Math.max(centerX, overlayWidth / 2 + margin), innerWidth - overlayWidth / 2 - margin);
+    centerY = Math.min(Math.max(centerY, overlayHeight / 2 + margin), innerHeight - overlayHeight / 2 - margin);
+
+    return {
+        left: centerX + window.scrollX,
+        top: centerY + window.scrollY
+    };
+}
+
+// When prepped input elements are clicked
+function openOverlayForInput(input, event) {
     // Check if overlay is already visible for this input
     const existingOverlay = document.querySelector('.cnp-overlay');
 
-    // If overlay exists, this is a second click - bypass extension and allow native behavior
-    if (existingOverlay) {
-        // Remove the overlay
-        closeOverlay();
-        // Don't prevent default - let the native file picker open
-        return;
+    if (existingOverlay || cnpOverlayOpening) {
+        if (event && event.preventDefault)
+            event.preventDefault();
+        if (Date.now() < cnpIgnoreOutsideClicksUntil)
+            return true;
+        if (existingOverlay)
+            closeOverlay();
+        return true;
     }
 
-    // First click - prevent default and show overlay
-    event.preventDefault();
-    originalInput = event.target;
+    if (event && event.preventDefault)
+        event.preventDefault();
+    originalInput = input;
+    cnpIgnoreOutsideClicksUntil = Date.now() + 250;
+    cnpOverlayOpening = true;
 
     // Create overlay
     const overlay = document.createElement('div');
@@ -275,35 +823,7 @@ function createOverlay(event) {
     // Fetch overlay.html
     function fetchURL() {
         return new Promise(resolve => {
-            var urlToFetch = null;
-            if (document.head.querySelector('script[overlayhtml]')) {
-                urlToFetch = document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml');
-                resolve(urlToFetch);
-            }
-            else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
-                try {
-                    urlToFetch = safeGetURL('overlay.html');
-                    resolve(urlToFetch);
-                }
-                catch {
-                    if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                        window.top.postMessage({ 'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': 'overlay.html' }, '*');
-                    else
-                        window.top.postMessage({ 'Type': 'getURL', 'Path': 'overlay.html' }, '*');
-                    window.onmessage = event => {
-                        if (event.data.Type == 'getURL-response') {
-                            urlToFetch = event.data.URL;
-                            resolve(urlToFetch);
-                        }
-                    }
-                }
-            else if (document.head.querySelector('copy-n-paste'))
-                try {
-                    urlToFetch = document.head.querySelector('copy-n-paste').getAttribute('overlay-html');
-                    resolve(urlToFetch);
-                } catch (error) { logging(error) }
-            else
-                resolve(urlToFetch);
+            resolve(getExtensionResourceURL('overlay.html'));
         });
     }
 
@@ -314,11 +834,12 @@ function createOverlay(event) {
                     .then(response => response.text())
                     .then(html => {
                         // Prevents duplicate overlay setup
-                        if (document.querySelector('.cnp-overlay'))
+                        if (document.querySelector('.cnp-overlay')) {
+                            cnpOverlayOpening = false;
                             return;
+                        }
 
-                        // Insert overlay HTML safely: prefer parsing and appending nodes (avoids innerHTML sinks),
-                        // fall back to TrustedTypes only if parsing doesn't find expected content.
+                        // Insert overlay HTML safely: parse the packaged overlay in an inert document and append nodes.
                         function insertOverlayHtml(overlayElem, htmlString) {
                             try {
                                 let parsed;
@@ -326,7 +847,7 @@ function createOverlay(event) {
                                     parsed = new DOMParser().parseFromString(htmlString, 'text/html');
                                 } catch (parseErr) {
                                     // Some hosts require TrustedHTML; DOMParser will throw. Treat as parse failure silently
-                                    // to avoid noisy console logs — fall back to TrustedTypes / innerHTML below.
+                                    // to avoid noisy console logs; the DOM-built fallback below avoids HTML string sinks.
                                     parsed = null;
                                     // Only log non-TrustedHTML parse errors
                                     if (parseErr && !(parseErr.message && parseErr.message.includes('TrustedHTML')))
@@ -358,35 +879,141 @@ function createOverlay(event) {
                                 }
                             } catch (e) { logging(e) }
 
-                            // If parsing didn't work or didn't contain expected content, try TrustedTypes only on
-                            // Google Docs / Slides (they require TrustedHTML). This avoids triggering CSP refusal
-                            // logs on other sites like LinkedIn.
-                            try {
-                                const trustedHTMLNeeded = docRequiresTrustedHTML();
-                                const blobAllowed = docAllowsBlobScripts();
-                                if (!isFirefox && trustedHTMLNeeded && window.trustedTypes && typeof trustedTypes.createPolicy === 'function') {
-                                    try {
-                                        const policy = trustedTypes.createPolicy("forceInner", { createHTML: (to_escape) => to_escape });
-                                        overlayElem.innerHTML = policy.createHTML(htmlString);
-                                        return true;
-                                    } catch (e) { logging(e) }
-                                }
+                            return buildOverlayFallback(overlayElem);
+                        }
 
-                                // Otherwise use safe shim (no-op) so we don't attempt to create policies on pages that block them
-                                if (!isFirefox) {
-                                    const trusted = getTrustedPolicy("forceInner", { createHTML: (to_escape) => to_escape }).createHTML(htmlString);
-                                    overlayElem.innerHTML = trusted;
-                                    return true;
-                                }
-                            } catch (e) { logging(e) }
+                        function buildOverlayFallback(overlayElem) {
+                            const overlayContent = document.createElement('div');
+                            overlayContent.className = 'cnp-overlay-content';
+                            Object.assign(overlayContent.style, {
+                                all: 'initial',
+                                backdropFilter: 'blur(15px)',
+                                position: 'absolute',
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: 'rgba(240, 240, 240, .75)',
+                                border: '1px solid #bebebe',
+                                borderRadius: '8px',
+                                boxShadow: '0px 10px 15px rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0)',
+                                color: '#212529',
+                                fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif',
+                                fontSize: 'medium',
+                                lineHeight: '1.25',
+                                padding: '0',
+                                textAlign: 'center',
+                                userSelect: 'none',
+                                WebkitBackdropFilter: 'blur(15px)',
+                                WebkitUserSelect: 'none',
+                                zIndex: '2147483647'
+                            });
 
-                            // Last resort: raw assignment (may still be blocked by CSP)
-                            try { overlayElem.innerHTML = htmlString; return true } catch (e) { logging(e); return false }
+                            const dropText = document.createElement('span');
+                            dropText.id = 'cnp-drop-text';
+                            dropText.textContent = 'Drop files here';
+                            Object.assign(dropText.style, {
+                                alignItems: 'center',
+                                backgroundColor: 'rgb(100, 100, 100)',
+                                border: '2px dashed #ffffff',
+                                borderRadius: '8px',
+                                boxSizing: 'border-box',
+                                color: 'white',
+                                display: 'none',
+                                fontWeight: 'normal',
+                                height: '100%',
+                                justifyContent: 'center',
+                                left: '0',
+                                pointerEvents: 'none',
+                                position: 'absolute',
+                                top: '0',
+                                width: '100%',
+                                zIndex: '1'
+                            });
+
+                            const previewContainer = document.createElement('div');
+                            previewContainer.id = 'cnp-preview-container';
+                            Object.assign(previewContainer.style, {
+                                alignItems: 'center',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: '153px',
+                                justifyContent: 'center',
+                                marginTop: '7px',
+                                width: '272px'
+                            });
+
+                            const spinner = document.createElement('div');
+                            spinner.className = 'cnp-spinner';
+                            previewContainer.appendChild(spinner);
+
+                            const badge = document.createElement('span');
+                            badge.className = 'cnp-preview-badge';
+                            badge.textContent = '0';
+                            Object.assign(badge.style, {
+                                backgroundColor: 'rgba(240, 240, 240)',
+                                backdropFilter: 'blur(15px)',
+                                border: '1px solid #bebebe',
+                                borderRadius: '8px',
+                                color: '#212529',
+                                display: 'none',
+                                fontSize: '1.1em',
+                                fontWeight: '400',
+                                left: '98%',
+                                lineHeight: '0.85',
+                                padding: '0.3em 0.5em',
+                                position: 'absolute',
+                                textAlign: 'center',
+                                top: '4%',
+                                transform: 'translate(-50%, -50%)',
+                                WebkitBackdropFilter: 'blur(15px)',
+                                wordBreak: 'normal'
+                            });
+
+                            const separator = document.createElement('hr');
+                            separator.className = 'cnp-hr';
+                            Object.assign(separator.style, {
+                                border: '0',
+                                borderTop: '.5px solid',
+                                color: 'inherit',
+                                height: '0px',
+                                margin: '7px 0',
+                                opacity: '.25',
+                                padding: '0',
+                                width: '100%'
+                            });
+
+                            const fileInput = document.createElement('input');
+                            fileInput.type = 'file';
+                            fileInput.id = 'cnp-overlay-file-input';
+                            fileInput.style.display = 'none';
+
+                            const uploadButton = document.createElement('div');
+                            uploadButton.id = 'cnp-upload-btn';
+                            uploadButton.className = 'cnp-menu-item';
+                            Object.assign(uploadButton.style, {
+                                cursor: 'default',
+                                marginBottom: '7px',
+                                padding: '6px'
+                            });
+
+                            const upload = document.createElement('span');
+                            upload.id = 'cnp-upload';
+                            upload.style.fontWeight = 'normal';
+                            upload.appendChild(document.createTextNode('+ '));
+
+                            const uploadText = document.createElement('span');
+                            uploadText.id = 'cnp-upload-text';
+                            uploadText.textContent = 'Upload File';
+                            upload.appendChild(uploadText);
+                            uploadButton.appendChild(upload);
+
+                            overlayContent.append(dropText, previewContainer, badge, separator, fileInput, uploadButton);
+                            overlayElem.appendChild(overlayContent);
+                            return true;
                         }
 
                         insertOverlayHtml(overlay, html);
 
-                        document.body.appendChild(overlay);
+                            (document.body || document.documentElement).appendChild(overlay);
+                        cnpOverlayOpening = false;
                         // Ensure overlay floats above page content even if page CSS wasn't copied
                         try {
                             overlay.style.left = overlay.style.left || '0px';
@@ -401,20 +1028,9 @@ function createOverlay(event) {
                             return;
                         }
 
-                        let overlayLeftPos = clientX + window.scrollX + (overlayContent.offsetWidth / 2);
-                        let overlayBottomPos = clientY + window.scrollY + (overlayContent.offsetHeight / 2);
-
-                        // Flip if overlay overshoots
-                        const tooMuchRight = overlayLeftPos + (overlayContent.offsetWidth / 2);
-                        const tooMuchBottom = overlayBottomPos + (overlayContent.offsetHeight / 2);
-
-                        if (tooMuchRight >= innerWidth)
-                            overlayLeftPos -= overlayContent.offsetWidth;
-                        if (tooMuchBottom >= innerHeight)
-                            overlayBottomPos -= overlayContent.offsetHeight;
-
-                        overlayContent.style.left = overlayLeftPos + 'px';
-                        overlayContent.style.top = overlayBottomPos + 'px';
+                        const anchor = overlayAnchorPoint(originalInput, event, overlayContent);
+                        overlayContent.style.left = anchor.left + 'px';
+                        overlayContent.style.top = anchor.top + 'px';
 
                         // Follow attributes of original input element
                         const overlayFileInput = overlay.querySelector('#cnp-overlay-file-input');
@@ -425,26 +1041,44 @@ function createOverlay(event) {
                             overlay.querySelector('#cnp-upload-text').textContent = "Upload Files";
 
                         // Overlay handle file input
-                        overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept'));
+                        overlayFileInput.setAttribute('accept', originalInput.getAttribute('accept') || '');
                         overlayFileInput.oncancel = () => closeOverlay();
                         overlayFileInput.onchange = event => {
-                            const fileList = new DataTransfer();
-                            // Reattach previous files and append new ones
-                            [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
+                            appendFilesToOriginalInput(event.target.files);
                         }
 
                         // Overlay upload click listener
                         const uploadBtn = overlay.querySelector('#cnp-upload-btn');
+                        function positionOverlayFileInput() {
+                            const buttonRect = uploadBtn.getBoundingClientRect();
+                            const contentRect = overlayContent.getBoundingClientRect();
+                            Object.assign(overlayFileInput.style, {
+                                cursor: 'pointer',
+                                display: 'block',
+                                height: buttonRect.height + 'px',
+                                left: (buttonRect.left - contentRect.left) + 'px',
+                                opacity: '0',
+                                pointerEvents: 'none',
+                                position: 'absolute',
+                                top: (buttonRect.top - contentRect.top) + 'px',
+                                width: buttonRect.width + 'px',
+                                zIndex: '2'
+                            });
+                        }
+                        positionOverlayFileInput();
                         overlayFileInput.focus({ preventScroll: true });
-                        uploadBtn.onclick = () => overlayFileInput.click();
+                        uploadBtn.onclick = event => {
+                            event.stopPropagation();
+                            overlayFileInput.click();
+                        };
 
                         // Close overlay when clicked outside
                         if (!document.cnpRemoveListener)
                             document.addEventListener('click', event => {
                                 document.cnpRemoveListener = true;
+                                if (Date.now() < cnpIgnoreOutsideClicksUntil)
+                                    return;
+
                                 document.querySelectorAll('.cnp-overlay-content').forEach(overlayContent => {
                                     if (!overlayContent.contains(event.target))
                                         closeOverlay();
@@ -469,131 +1103,45 @@ function createOverlay(event) {
                         overlay.ondrop = event => {
                             event.preventDefault();
                             CNP_dropText.style.display = 'none';
-                            const fileList = new DataTransfer();
-                            // Reattach previous files and append new ones
                             const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
-                            [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
+                            appendFilesToOriginalInput(excludedFolders);
                         };
 
                         // Handle Ctrl+V action
                         document.addEventListener('keydown', ctrlV);
 
-                        // Handle paste event
-                        var isPasteListenerTriggered = false;
+                        // Handle explicit user paste as a fallback when automatic extension paste is unavailable.
                         document.addEventListener('paste', async event => {
-                            isPasteListenerTriggered = true;
+                            if (!event.isTrusted)
+                                return;
+
                             event.stopPropagation();
                             event.preventDefault();
-
-                            const statusMap = new Map();
-                            statusMap.set('success', 0);
-                            statusMap.set('fail', 0);
-                            if (overlayFileInput) {
-                                // Access clipboard to display latest copied files to overlay
-                                const dataTransfer = event.clipboardData;
-                                if (dataTransfer.files.length > 0) {
-                                    ctrlVdata = cloneEvent(event.clipboardData); // Separate paste listener using Ctrl+V
-
-                                    // Function to handle the FileReader asynchronously
-                                    const processFiles = file => {
-                                        return new Promise(resolve => {
-                                            reader = new FileReader();
-                                            reader.onload = readerEvent => {
-                                                let webCopiedImgSrc = '';
-                                                previewImage(webCopiedImgSrc, readerEvent, file, overlay.id);
-                                                statusMap.set('success', statusMap.get('success') + 1);
-                                                resolve();
-                                            };
-                                            reader.onerror = () => {
-                                                statusMap.set('fail', statusMap.get('fail') + 1);
-                                                resolve();
-                                            };
-                                            reader.onabort = () => { return };
-                                            reader.readAsArrayBuffer(file);
-                                        });
-                                    };
-
-                                    // Reattach previous files for multi-file (continues in imagePreviewContainer.onclick below)
-                                    const fileList = new DataTransfer();
-                                    [...originalInput.files].forEach(file => fileList.items.add(file));
-
-                                    // Array of promises to process each file
-                                    const excludedFolders = [...dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
-                                    if (excludedFolders.length == 0) {
-                                        noImage();
-                                        return;
-                                    }
-                                    else {
-                                        const badge = document.querySelector('.cnp-preview-badge');
-                                        var isFirstFile = true;
-                                        const readPromises = [...dataTransfer.files]
-                                            .filter(file => !(file.size === 0 && file.type === ''))
-                                            .map(file => {
-                                                let filename = file.name;
-                                                if (!filename || filename == 'image.png')
-                                                    filename = 'CnP_' + new Date().toLocaleString('en-GB', { hour12: false }).replace(/, /g, '_').replace(/[\/: ]/g, '') + '.' + file.type.split('/').pop();
-
-                                                // Badge counter setup
-                                                badge.title += filename + '\n';
-                                                badge.innerText = parseInt(badge.innerText) + 1;
-                                                if (parseInt(badge.innerText) > 1)
-                                                    badge.style.display = 'inline-block';
-
-                                                fileList.items.add(new File([file], filename, { type: file.type, lastModified: file.lastModified }));
-
-                                                if (isFirstFile) {
-                                                    isFirstFile = false;
-                                                    return processFiles(file);
-                                                }
-                                            });
-                                        await Promise.all(readPromises);
-                                    }
-
-                                    if (statusMap.get('fail') >= 1 && statusMap.get('success') <= 0)
-                                        noImage();
-                                    else {
-                                        const imagePreviewContainer = document.querySelector('#cnp-preview-container');
-                                        imagePreviewContainer.style.cursor = 'pointer';
-                                        imagePreviewContainer.onclick = () => {
-                                            originalInput.files = fileList.files;
-                                            triggerChangeEvent(originalInput);
-                                            closeOverlay();
-                                        };
-                                    }
-                                } else
-                                    noImage();
-                            }
+                            renderClipboardFiles(event.clipboardData.files, overlay.id);
                         }, { once: true, capture: true });
 
-                        // Trigger paste event
-                        overlay.contentEditable = true;
-                        overlay.focus({ preventScroll: true });
-                        document.execCommand('paste');
-                        if (!isPasteListenerTriggered)
-                            window.top.postMessage({ 'Type': 'paste' }, '*');
-                        isPasteListenerTriggered = false;
-                        overlay.contentEditable = false;
-
-                        // Trigger paste event for iframe
-                        if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                            window.top.postMessage({ 'Type': 'paste', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id') }, '*');
+                        requestClipboardFilesForOverlay(overlay.id);
+                    }).catch(error => {
+                        cnpOverlayOpening = false;
+                        logging(error);
                     });
             }
         });
     } catch (error) { logging(error) }
+    return true;
 }
 
 
 // Preview 'No image' message
-function noImage() {
+function noImage(requestedOverlayID) {
+    const overlay = requestedOverlayID ? document.getElementById(requestedOverlayID) : document.querySelector('.cnp-overlay');
+    if (!overlay || overlay.querySelector('#cnp-not-image') || overlay.querySelector('#cnp-image-preview'))
+        return;
+
     const CNP_notImage = document.createElement('span');
     CNP_notImage.id = 'cnp-not-image';
     CNP_notImage.textContent = 'Screenshot / Copy / Drop files';
 
-    const overlay = document.querySelector('.cnp-overlay');
     const imagePreviewContainer = overlay.querySelector('#cnp-preview-container');
     imagePreviewContainer.style.pointerEvents = 'none';
     imagePreviewContainer.appendChild(CNP_notImage);
@@ -631,6 +1179,8 @@ function triggerChangeEvent(originalInput) {
 
 // Close overlay immediate
 function closeOverlay() {
+    cnpOverlayOpening = false;
+    overlayID = null;
     document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
     document.removeEventListener('keydown', ctrlV);
     URL.revokeObjectURL(currentObjectURL);
@@ -641,5 +1191,4 @@ function closeOverlay() {
 // Console logging for errors and messages
 function logging(message) {
     console.log('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message);
-    window.top.postMessage(('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message), '*');
 }

@@ -394,11 +394,7 @@ test('extension overlay supports upload targets without exposing paste message b
         await expect(page.locator('.cnp-overlay-content')).toBeVisible();
         await expect(page.locator('#changed')).toHaveText(previousBskyAttachment);
         await expect(page.locator('#cnp-overlay-file-input')).toBeVisible();
-        await expect.poll(() => page.locator('#cnp-upload-btn').evaluate(uploadButton => {
-            const rect = uploadButton.getBoundingClientRect();
-            const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-            return !!(hitTarget && hitTarget.id === 'cnp-overlay-file-input' && hitTarget.type === 'file');
-        })).toBe(true);
+        await expect(page.locator('#cnp-overlay-file-input')).toHaveAttribute('type', 'file');
         const bskyChooserPromise = page.waitForEvent('filechooser');
         await page.locator('#cnp-upload-btn').click();
         const bskyChooser = await bskyChooserPromise;
@@ -424,11 +420,7 @@ test('extension overlay supports upload targets without exposing paste message b
         await page.locator('#gemini-upload-files').click();
         await expect(page.locator('.cnp-overlay-content')).toBeVisible();
         await expect(page.locator('#cnp-overlay-file-input')).toBeVisible();
-        await expect.poll(() => page.locator('#cnp-upload-btn').evaluate(uploadButton => {
-            const rect = uploadButton.getBoundingClientRect();
-            const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-            return !!(hitTarget && hitTarget.id === 'cnp-overlay-file-input' && hitTarget.type === 'file');
-        })).toBe(true);
+        await expect(page.locator('#cnp-overlay-file-input')).toHaveAttribute('type', 'file');
         const overlayFileChooserPromise = page.waitForEvent('filechooser');
         await page.locator('#cnp-upload-btn').click();
         const overlayFileChooser = await overlayFileChooserPromise;

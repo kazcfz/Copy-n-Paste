@@ -1,6 +1,13 @@
 {
     "browser_specific_settings": {
-      "gecko": { "id": "kazcfz@copy-n-paste" }
+      "gecko": {
+        "id": "kazcfz@copy-n-paste",
+        "strict_min_version": "140.0",
+        "data_collection_permissions": {
+          "required": ["none"]
+        }
+      },
+      "gecko_android": { "strict_min_version": "142.0" }
     },
     "manifest_version": 2,
     "name": "Copy-n-Paste: Clipboard Upload Simplified",
@@ -16,6 +23,7 @@
       {
         "js": ["init.js", "content.js"],
         "all_frames": true,
+        "run_at": "document_start",
         "matches": ["<all_urls>"]
       }
     ],
@@ -23,7 +31,6 @@
     "web_accessible_resources": [
       "overlay.html",
       "init.js",
-      "content.js",
       "media/*"
     ]
   }

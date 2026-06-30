@@ -14,13 +14,14 @@
       {
         "js": ["init.js", "content.js"],
         "all_frames": true,
+        "run_at": "document_start",
         "matches": ["<all_urls>"]
       }
     ],
     "background" : { "service_worker": "background.js" },
     "web_accessible_resources": [
       {
-        "resources": ["overlay.html", "init.js", "content.js", "media/*"],
+        "resources": ["overlay.html", "init.js", "media/*"],
         "matches": ["<all_urls>"]
       }
     ]

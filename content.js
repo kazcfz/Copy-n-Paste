@@ -10,6 +10,123 @@ else
 
 // Global variables
 var lastURL = location.href;
+var cnpLastTrustedClickAt = 0;
+var cnpContentBridgeChannel = 'copy-n-paste:clipboard';
+var cnpContentPageRequest = 'page-request';
+var cnpContentResponse = 'content-response';
+var cnpCancelClipboardRead = null;
+
+function cnpMessageTargetOrigin() {
+    return location.origin === 'null' ? '*' : location.origin;
+}
+
+function isSameWindowMessage(event) {
+    if (event.source !== window)
+        return false;
+
+    if (location.origin !== 'null' && event.origin !== location.origin)
+        return false;
+
+    return true;
+}
+
+function isClipboardPreviewRequest(data) {
+    return !!(data
+        && data.channel === cnpContentBridgeChannel
+        && data.direction === cnpContentPageRequest
+        && data.type === 'read-clipboard-files'
+        && typeof data.requestId === 'string'
+        && /^[a-f0-9-]{36}$/i.test(data.requestId)
+        && typeof data.overlayId === 'string'
+        && document.getElementById(data.overlayId)?.classList.contains('cnp-overlay'));
+}
+
+function readClipboardFilesViaPaste() {
+    if (cnpCancelClipboardRead)
+        cnpCancelClipboardRead();
+
+    return new Promise(resolve => {
+        const pasteTarget = document.createElement('div');
+        pasteTarget.contentEditable = 'true';
+        pasteTarget.setAttribute('aria-hidden', 'true');
+        Object.assign(pasteTarget.style, {
+            height: '1px',
+            left: '-10000px',
+            opacity: '0',
+            overflow: 'hidden',
+            position: 'fixed',
+            top: '-10000px',
+            width: '1px'
+        });
+
+        let settled = false;
+        function finish(files) {
+            if (settled)
+                return;
+
+            settled = true;
+            document.removeEventListener('paste', onPaste, true);
+            pasteTarget.remove();
+            if (cnpCancelClipboardRead === cancel)
+                cnpCancelClipboardRead = null;
+            resolve(files);
+        }
+
+        function cancel() {
+            finish([]);
+        }
+
+        function onPaste(event) {
+            event.stopPropagation();
+            event.preventDefault();
+            finish([...event.clipboardData.files].filter(file => !(file.size === 0 && file.type === '')));
+        }
+
+        cnpCancelClipboardRead = cancel;
+        document.addEventListener('paste', onPaste, { once: true, capture: true });
+        (document.body || document.documentElement).appendChild(pasteTarget);
+        pasteTarget.focus({ preventScroll: true });
+
+        try { document.execCommand('paste') } catch (e) { }
+        setTimeout(() => finish([]), 300);
+    });
+}
+
+window.addEventListener('message', async event => {
+    if (!isSameWindowMessage(event) || !isClipboardPreviewRequest(event.data))
+        return;
+
+    if (Date.now() - cnpLastTrustedClickAt > 5000) {
+        window.postMessage({
+            channel: cnpContentBridgeChannel,
+            direction: cnpContentResponse,
+            type: 'clipboard-files',
+            requestId: event.data.requestId,
+            overlayId: event.data.overlayId,
+            files: []
+        }, cnpMessageTargetOrigin());
+        return;
+    }
+
+    window.postMessage({
+        channel: cnpContentBridgeChannel,
+        direction: cnpContentResponse,
+        type: 'clipboard-files',
+        requestId: event.data.requestId,
+        overlayId: event.data.overlayId,
+        files: await readClipboardFilesViaPaste()
+    }, cnpMessageTargetOrigin());
+});
+
+function markTrustedActivation(event) {
+    if (event.isTrusted)
+        cnpLastTrustedClickAt = Date.now();
+}
+
+['pointerdown', 'mousedown', 'keydown', 'click'].forEach(type => {
+    window.addEventListener(type, markTrustedActivation, true);
+    document.addEventListener(type, markTrustedActivation, true);
+});
 
 // Safe Trusted Types helper: try to create and memoize a policy, but fall back to no-op shim
 function getTrustedPolicy(name, options) {
@@ -25,6 +142,17 @@ function safeGetURL(path) {
             return chrome.runtime.getURL(path);
     } catch (e) { }
     return path;
+}
+
+function extensionBaseURL() {
+    try {
+        return safeGetURL('');
+    } catch (e) { }
+    return '';
+}
+
+function appendScript(targetDoc, script) {
+    (targetDoc.head || targetDoc.documentElement || targetDoc).appendChild(script);
 }
 
 // Feature detection helpers
@@ -80,7 +208,7 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
             if (id) s.id = id;
             if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
             try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { s.src = safeGetURL(scriptPath) }
-            targetDoc.head.appendChild(s);
+            appendScript(targetDoc, s);
             return;
         }
 
@@ -92,21 +220,21 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
                 const blob = new Blob([code], { type: 'text/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
                 try { s.setAttribute('src', blobUrl); } catch (e) { s.src = blobUrl }
-                targetDoc.head.appendChild(s);
+                appendScript(targetDoc, s);
             } catch (e) {
                 // fallback
                 const s = targetDoc.createElement('script');
                 if (id) s.id = id;
                 if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
                 try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e2) { s.src = safeGetURL(scriptPath) }
-                targetDoc.head.appendChild(s);
+                appendScript(targetDoc, s);
             }
         }).catch(err => {
             const s = targetDoc.createElement('script');
             if (id) s.id = id;
             if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
             try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e) { s.src = safeGetURL(scriptPath) }
-            targetDoc.head.appendChild(s);
+            appendScript(targetDoc, s);
         });
     } catch (e) {
         try {
@@ -114,59 +242,32 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
             if (id) s.id = id;
             if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
             try { s.setAttribute('src', safeGetURL(scriptPath)); } catch (e2) { s.src = safeGetURL(scriptPath) }
-            targetDoc.head.appendChild(s);
+            appendScript(targetDoc, s);
         } catch (err) { logging(err) }
     }
 }
 
 // Inject init.js to the DOM: use extension URL for Google Docs/Slides (their CSP blocks blob:),
 // otherwise use blob injection to avoid TrustedScriptURL enforcement on other pages.
-if (!document.head.querySelector('CnP-init')) {
+if (!document.getElementById('CnP-init')) {
     const initJS = document.createElement('script');
     initJS.id = `CnP-init`;
     initJS.setAttribute('overlayhtml', safeGetURL('overlay.html'));
+    initJS.setAttribute('cnpbaseurl', extensionBaseURL());
 
-    const isGoogleDocs = (location.hostname || '').includes('docs.google') || (location.hostname || '').includes('slides.google');
-    if (isGoogleDocs) {
-        // Docs blocks blob:, but may allow extension's chrome-extension:// URL (depends on installed extension id)
-        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
-        document.head.appendChild(initJS);
-    } else {
-        // Try to fetch the extension script and inject via blob URL
-        try {
-            fetch(safeGetURL('init.js'))
-                .then(response => response.text())
-                .then(code => {
-                    try {
-                        const blob = new Blob([code], { type: 'text/javascript' });
-                        const blobUrl = URL.createObjectURL(blob);
-                        initJS.setAttribute('src', blobUrl);
-                    } catch (e) {
-                        // fallback to direct extension URL
-                        try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
-                    }
-                    document.head.appendChild(initJS);
-                })
-                .catch(err => {
-                    // Fallback: append script with extension URL
-                    try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
-                    document.head.appendChild(initJS);
-                });
-        } catch (e) {
-            try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e2) { initJS.src = safeGetURL('init.js') }
-            document.head.appendChild(initJS);
-        }
-    }
+    try { initJS.setAttribute('src', safeGetURL('init.js')); } catch (e) { initJS.src = safeGetURL('init.js') }
+    appendScript(document, initJS);
 }
 
 function afterDOMLoaded() {
     // Prep all input file elements
-    if (!document.cnpClickListener)
+    if (!document.cnpClickListener) {
+        document.cnpClickListener = true;
         document.addEventListener("click", event => {
-            document.cnpClickListener = true;
             if (event.target.matches("input[type='file']"))
                 setupcreateOverlay(event.target);
         }, true);
+    }
 
     // Run through DOM to detect:
     document.querySelectorAll('*').forEach((element, index) => {
@@ -182,8 +283,7 @@ function afterDOMLoaded() {
         else if (element.matches('iframe'))
             if (element.contentDocument) {
                 element.classList.add(`CnP-iframe-${index}`);
-                fetchAndInjectScript(element.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
-                fetchAndInjectScript(element.contentDocument, 'content.js', `CnP-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
+                fetchAndInjectScript(element.contentDocument, 'init.js', `CnP-init-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html'), cnpbaseurl: extensionBaseURL() });
             }
     });
 
@@ -214,8 +314,7 @@ function afterDOMLoaded() {
                         if (node.contentDocument) {
                             // Inject scripts into dynamically added iframe using blob URLs
                             node.classList.add(`CnP-mutatedIframe-${index}`);
-                            fetchAndInjectScript(node.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
-                            fetchAndInjectScript(node.contentDocument, 'content.js', `CnP-mutatedIframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
+                            fetchAndInjectScript(node.contentDocument, 'init.js', `CnP-init-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html'), cnpbaseurl: extensionBaseURL() });
                         }
 
                         // Checks if sub-nodes/child are input file elements
@@ -238,39 +337,5 @@ function afterDOMLoaded() {
         } catch (error) { logging(error) }
     }
 
-    // Message listener between window.top and iframes
-    if (!window.cnpMessageListener)
-        window.addEventListener('message', event => {
-            window.cnpMessageListener = true;
-            // Execute paste events from top level since iframes can't
-            if (event.data.Type == 'paste') {
-                if (!event.data.iframe)
-                    document.execCommand('paste');
-                else {
-                    try {
-                        let el = null;
-                        // event.data.iframe may be an id or a class — try id first
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentDocument && typeof el.contentDocument.execCommand === 'function')
-                            el.contentDocument.execCommand('paste');
-                        else
-                            logging('iframe for paste not available');
-                    } catch (error) {
-                        logging(error);
-                        try { noImage() } catch (error) { logging(error) }
-                    }
-                }
-            } else if (event.data.Type == 'getURL')
-                if (event.data.iframe) {
-                    try {
-                        let el = null;
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentWindow && typeof el.contentWindow.postMessage === 'function')
-                            el.contentWindow.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
-                        else
-                            logging('iframe for getURL not available');
-                    } catch (error) { logging(error) }
-                } else
-                    window.top.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
-        });
+    document.documentElement.dataset.cnpPageHookLoaded = 'true';
 }
