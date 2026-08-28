@@ -12,6 +12,13 @@
     "permissions": ["clipboardRead", "alarms"],
     "content_scripts": [
       {
+        "js": ["init.js"],
+        "world": "MAIN",
+        "all_frames": true,
+        "matches": ["<all_urls>"],
+        "run_at": "document_start"
+      },
+      {
         "js": ["init.js", "content.js"],
         "all_frames": true,
         "matches": ["<all_urls>"]

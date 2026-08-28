@@ -10,6 +10,17 @@ else
 
 // Global variables
 var lastURL = location.href;
+var cnpLastGesture = 0;
+
+// Expose the extension base URL so the main-world init.js (no chrome.runtime) can resolve resources.
+try { document.documentElement.setAttribute('data-cnp-base', safeGetURL('')); } catch (e) { }
+
+// Track genuine user gestures so the clipboard bridge only fires in response to real interaction.
+if (!document.cnpGestureListener) {
+    document.cnpGestureListener = true;
+    ['pointerdown', 'keydown'].forEach(type =>
+        document.addEventListener(type, event => { if (event.isTrusted) cnpLastGesture = Date.now(); }, true));
+}
 
 // Safe Trusted Types helper: try to create and memoize a policy, but fall back to no-op shim
 function getTrustedPolicy(name, options) {
@@ -121,7 +132,8 @@ function fetchAndInjectScript(targetDoc, scriptPath, id, attrs) {
 
 // Inject init.js to the DOM: use extension URL for Google Docs/Slides (their CSP blocks blob:),
 // otherwise use blob injection to avoid TrustedScriptURL enforcement on other pages.
-if (!document.head.querySelector('CnP-init')) {
+// Fallback only — the manifest's world:MAIN content script normally puts init.js in the page world.
+if (!document.documentElement.hasAttribute('data-cnp-main') && !document.head.querySelector('#CnP-init')) {
     const initJS = document.createElement('script');
     initJS.id = `CnP-init`;
     initJS.setAttribute('overlayhtml', safeGetURL('overlay.html'));
@@ -159,78 +171,84 @@ if (!document.head.querySelector('CnP-init')) {
     }
 }
 
-function afterDOMLoaded() {
-    // Prep all input file elements
-    if (!document.cnpClickListener)
-        document.addEventListener("click", event => {
-            document.cnpClickListener = true;
-            if (event.target.matches("input[type='file']"))
-                setupcreateOverlay(event.target);
-        }, true);
+// Prep a same-origin iframe by injecting the extension scripts into its document.
+// Cross-origin iframes are covered independently by the manifest's all_frames content script.
+var cnpIframeIndex = 0;
+function cnpHandleIframe(iframe) {
+    try {
+        // world:MAIN + all_frames normally injects into iframes automatically; this is a fallback.
+        if (iframe.contentDocument && !iframe.contentDocument.documentElement.hasAttribute('data-cnp-main')) {
+            const index = cnpIframeIndex++;
+            iframe.classList.add(`CnP-iframe-${index}`);
+            fetchAndInjectScript(iframe.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
+            fetchAndInjectScript(iframe.contentDocument, 'content.js', `CnP-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
+        }
+    } catch (error) { logging(error) }
+}
 
-    // Run through DOM to detect:
-    document.querySelectorAll('*').forEach((element, index) => {
-        // Raw input file elements
+// Recursively prep every file input in a root, descending into open shadow trees and
+// same-origin iframes. Closed shadow roots are inaccessible by design.
+function cnpScan(root) {
+    let elements;
+    try { elements = root.querySelectorAll('*'); } catch (error) { return }
+    elements.forEach(element => {
         if (element.matches("input[type='file']"))
             setupcreateOverlay(element);
-
-        // Shadow roots
-        else if (element.shadowRoot)
-            element.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
-
-        // iframes
+        if (element.shadowRoot)
+            cnpScan(element.shadowRoot);
         else if (element.matches('iframe'))
-            if (element.contentDocument) {
-                element.classList.add(`CnP-iframe-${index}`);
-                fetchAndInjectScript(element.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
-                fetchAndInjectScript(element.contentDocument, 'content.js', `CnP-iframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
-            }
+            cnpHandleIframe(element);
     });
+}
 
-    // Find and prep customized input file elements, iframes
+// Prep a single added node: the node itself plus its entire subtree.
+function cnpProcessAddedNode(node) {
+    if (!node)
+        return;
+    if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.matches("input[type='file']"))
+            setupcreateOverlay(node);
+        else if (node.shadowRoot)
+            cnpScan(node.shadowRoot);
+        else if (node.matches('iframe'))
+            cnpHandleIframe(node);
+        cnpScan(node);
+    } else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE)
+        cnpScan(node);
+}
+
+function afterDOMLoaded() {
+    // Intercept clicks on file inputs anywhere in the composed path so open shadow DOM is covered.
+    // Inputs already prepped by the scanner/observer are handled by their own listener; anything
+    // first seen here (e.g. just inserted in shadow DOM) is handled inline so the very first click
+    // shows the overlay instead of leaking through to the native picker.
+    if (!document.cnpClickListener) {
+        document.cnpClickListener = true;
+        document.addEventListener("click", event => {
+            const path = (typeof event.composedPath === 'function') ? event.composedPath() : [event.target];
+            let fileInput = null;
+            for (const node of path)
+                if (node && node.matches && node.matches("input[type='file']") && !(node.id || '').toLowerCase().startsWith('cnp')) {
+                    fileInput = node;
+                    break;
+                }
+            if (fileInput && fileInput.dataset.cnpCreateListener !== "true")
+                try { createOverlay(event, fileInput) } catch (error) { logging(error) }
+        }, true);
+    }
+
+    // Prep file inputs already present (light DOM, open shadow DOM, same-origin iframes)
+    cnpScan(document);
+
+    // Watch for inputs / iframes / shadow hosts added later
     if (!document.body.cnpMutationObserver) {
         const observer = new MutationObserver(mutations => {
-            // 'Reload' extension when navigated to other pages within the website
+            // 'Reload' extension when navigated to other pages within the website (SPA)
             if (lastURL !== location.href) {
                 lastURL = location.href;
                 afterDOMLoaded();
             }
-
-            // Watch the DOM to detect:
-            mutations.forEach(mutation => {
-                mutation.addedNodes.forEach((node, index) => {
-                    // Input file elements
-                    if (node.nodeType === Node.ELEMENT_NODE && node.matches("input[type='file']"))
-                        setupcreateOverlay(node);
-
-                    // Shadow roots
-                    else if (node.nodeType === Node.ELEMENT_NODE && node.shadowRoot) {
-                        const fileInputs = node.shadowRoot.querySelectorAll("input[type='file']");
-                        fileInputs.forEach(fileInput => setupcreateOverlay(fileInput));
-                    }
-
-                    // iframes
-                    else if (node.nodeType === Node.ELEMENT_NODE && node.matches("iframe"))
-                        if (node.contentDocument) {
-                            // Inject scripts into dynamically added iframe using blob URLs
-                            node.classList.add(`CnP-mutatedIframe-${index}`);
-                            fetchAndInjectScript(node.contentDocument, 'init.js', `CnP-init-iframe-${index}`);
-                            fetchAndInjectScript(node.contentDocument, 'content.js', `CnP-mutatedIframe-${index}`, { overlayhtml: safeGetURL('overlay.html') });
-                        }
-
-                        // Checks if sub-nodes/child are input file elements
-                        else if (node.nodeType === Node.ELEMENT_NODE && node.hasChildNodes())
-                            node.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
-
-                        // If the added node is a document fragment, it may contain shadow hosts
-                        else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-                            node.childNodes.forEach(childNode => {
-                                if (childNode.nodeType === Node.ELEMENT_NODE && childNode.shadowRoot)
-                                    childNode.shadowRoot.querySelectorAll("input[type='file']").forEach(fileInput => setupcreateOverlay(fileInput));
-                            });
-                        }
-                });
-            });
+            mutations.forEach(mutation => mutation.addedNodes.forEach(cnpProcessAddedNode));
         });
         try {
             observer.observe(document.body, { childList: true, subtree: true });
@@ -238,39 +256,20 @@ function afterDOMLoaded() {
         } catch (error) { logging(error) }
     }
 
-    // Message listener between window.top and iframes
-    if (!window.cnpMessageListener)
+    // Clipboard bridge: the page's main-world script (no clipboardRead) asks this isolated content
+    // script to read the clipboard. Only honor requests from our own origin, while an overlay is
+    // open and shortly after a real user gesture, so a hostile page can't silently read the clipboard.
+    if (!window.cnpMessageListener) {
+        window.cnpMessageListener = true;
         window.addEventListener('message', event => {
-            window.cnpMessageListener = true;
-            // Execute paste events from top level since iframes can't
-            if (event.data.Type == 'paste') {
-                if (!event.data.iframe)
-                    document.execCommand('paste');
-                else {
-                    try {
-                        let el = null;
-                        // event.data.iframe may be an id or a class — try id first
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentDocument && typeof el.contentDocument.execCommand === 'function')
-                            el.contentDocument.execCommand('paste');
-                        else
-                            logging('iframe for paste not available');
-                    } catch (error) {
-                        logging(error);
-                        try { noImage() } catch (error) { logging(error) }
-                    }
-                }
-            } else if (event.data.Type == 'getURL')
-                if (event.data.iframe) {
-                    try {
-                        let el = null;
-                        try { el = document.getElementById(event.data.iframe) || document.getElementsByClassName(event.data.iframe)[0]; } catch (e) { el = null }
-                        if (el && el.contentWindow && typeof el.contentWindow.postMessage === 'function')
-                            el.contentWindow.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
-                        else
-                            logging('iframe for getURL not available');
-                    } catch (error) { logging(error) }
-                } else
-                    window.top.postMessage({ 'Type': 'getURL-response', 'URL': safeGetURL(event.data.Path) }, '*');
+            if (event.origin !== location.origin)
+                return;
+            const data = event.data;
+            if (!data || data.cnp !== 'copy-n-paste' || data.type !== 'read-clipboard')
+                return;
+            if (!document.querySelector('.cnp-overlay') || Date.now() - cnpLastGesture > 5000)
+                return;
+            try { document.execCommand('paste'); } catch (error) { logging(error) }
         });
+    }
 }

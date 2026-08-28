@@ -2,24 +2,31 @@
 Initializes global variables and functions.
 */
 
-// Detect and override input elements that uses .click()
-var oriClick = HTMLElement.prototype.click;
-HTMLElement.prototype.click = function (...args) {
-    if (this.matches("input[type='file']") && !this.id.toLowerCase().startsWith('cnp')) {
-        setupcreateOverlay(this);
-        oriClick.call(this, ...args);
-    } else
-        return oriClick.apply(this, arguments);
-};
+// Mark the page's main world (no chrome.runtime) so the isolated content script can skip its
+// fallback injection.
+if (!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id))
+    try { document.documentElement.setAttribute('data-cnp-main', '1'); } catch (e) { }
 
-// Detect and override input elements that uses .showPicker()
-var oriShowPicker = HTMLInputElement.prototype.showPicker;
-HTMLInputElement.prototype.showPicker = function () {
-    if (this.matches("input[type='file']"))
-        this.click();
-    else
-        return oriShowPicker.apply(this, arguments);
-};
+// Detect and override input elements that use .click() / .showPicker(). Guarded so a second
+// injection into the same world doesn't wrap the prototypes twice.
+if (!HTMLElement.prototype.__cnpPatched) {
+    HTMLElement.prototype.__cnpPatched = true;
+    var oriClick = HTMLElement.prototype.click;
+    HTMLElement.prototype.click = function (...args) {
+        if (this.matches("input[type='file']") && !this.id.toLowerCase().startsWith('cnp')) {
+            setupcreateOverlay(this);
+            oriClick.call(this, ...args);
+        } else
+            return oriClick.apply(this, arguments);
+    };
+    var oriShowPicker = HTMLInputElement.prototype.showPicker;
+    HTMLInputElement.prototype.showPicker = function () {
+        if (this.matches("input[type='file']"))
+            this.click();
+        else
+            return oriShowPicker.apply(this, arguments);
+    };
+}
 
 // Global variables
 var clientX = 0;
@@ -28,6 +35,7 @@ var overlayID = null;
 var ctrlVdata = null;
 var currentObjectURL = null;
 var reader = null; //Paste event listener's
+var cnpPreviewPointerHandler = null;
 var isFirefox = typeof InstallTrigger !== 'undefined';
 var isChrome = !!window.chrome && (!!window.chrome.webstore || !!window.chrome.runtime);
 
@@ -43,6 +51,11 @@ function safeGetURL(path) {
     try {
         if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function')
             return chrome.runtime.getURL(path);
+    } catch (e) { }
+    // Main world (no chrome.runtime): use the base URL the isolated content script exposed.
+    try {
+        const base = document.documentElement.getAttribute('data-cnp-base');
+        if (base) return base + path;
     } catch (e) { }
     return path;
 }
@@ -125,9 +138,7 @@ async function ctrlV(event) {
                 });
             await Promise.all(readPromise);
 
-            originalInput.files = fileList.files;
-            triggerChangeEvent(originalInput);
-            closeOverlay();
+            attachFilesToInput(fileList);
         }
     }
 }
@@ -205,19 +216,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
         imagePreview.style.height = '50%';
         try {
             imagePreview.src = safeGetURL(`media/${fileTypeIcon}.webp`);
-        } catch {
-            try {
-                if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                    window.top.postMessage({ 'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': `media/${fileTypeIcon}.webp` }, '*');
-                else
-                    window.top.postMessage({ 'Type': 'getURL', 'Path': `media/${fileTypeIcon}.webp` }, '*');
-
-                window.onmessage = event => {
-                    if (event.data.Type == 'getURL-response')
-                        imagePreview.src = event.data.URL;
-                }
-            } catch (error) { logging(error) }
-        }
+        } catch (error) { logging(error) }
         try { imagePreviewContainer.appendChild(imagePreview) } catch (error) { logging(error) }
 
         let title = document.createElement('span');
@@ -247,7 +246,7 @@ function previewImage(webCopiedImgSrc, readerEvent, blob, requestedOverlayID) {
 }
 
 // When prepped input elements are clicked
-function createOverlay(event) {
+function createOverlay(event, explicitInput) {
     // Check if overlay is already visible for this input
     const existingOverlay = document.querySelector('.cnp-overlay');
 
@@ -260,8 +259,11 @@ function createOverlay(event) {
     }
 
     // First click - prevent default and show overlay
-    event.preventDefault();
-    originalInput = event.target;
+    if (event)
+        event.preventDefault();
+    // Resolve the real <input>: an explicit reference wins, then the element the listener is
+    // bound to (correct even inside shadow DOM), then the retargeted target as a last resort.
+    originalInput = explicitInput || (event && event.currentTarget && event.currentTarget.matches && event.currentTarget.matches("input[type='file']") ? event.currentTarget : (event && event.target));
 
     // Create overlay
     const overlay = document.createElement('div');
@@ -280,23 +282,10 @@ function createOverlay(event) {
                 urlToFetch = document.head.querySelector('script[overlayhtml]').getAttribute('overlayhtml');
                 resolve(urlToFetch);
             }
-            else if (!urlToFetch && typeof chrome.runtime !== 'undefined')
-                try {
-                    urlToFetch = safeGetURL('overlay.html');
-                    resolve(urlToFetch);
-                }
-                catch {
-                    if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                        window.top.postMessage({ 'Type': 'getURL', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id'), 'Path': 'overlay.html' }, '*');
-                    else
-                        window.top.postMessage({ 'Type': 'getURL', 'Path': 'overlay.html' }, '*');
-                    window.onmessage = event => {
-                        if (event.data.Type == 'getURL-response') {
-                            urlToFetch = event.data.URL;
-                            resolve(urlToFetch);
-                        }
-                    }
-                }
+            else if (document.documentElement.getAttribute('data-cnp-base') || (typeof chrome !== 'undefined' && chrome.runtime)) {
+                urlToFetch = safeGetURL('overlay.html');
+                resolve(urlToFetch);
+            }
             else if (document.head.querySelector('copy-n-paste'))
                 try {
                     urlToFetch = document.head.querySelector('copy-n-paste').getAttribute('overlay-html');
@@ -431,9 +420,7 @@ function createOverlay(event) {
                             const fileList = new DataTransfer();
                             // Reattach previous files and append new ones
                             [...originalInput.files, ...event.target.files].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
+                            attachFilesToInput(fileList);
                         }
 
                         // Overlay upload click listener
@@ -473,9 +460,7 @@ function createOverlay(event) {
                             // Reattach previous files and append new ones
                             const excludedFolders = [...event.dataTransfer.files].filter(file => !(file.size === 0 && file.type === ''));
                             [...originalInput.files, ...excludedFolders].forEach(file => fileList.items.add(file));
-                            originalInput.files = fileList.files;
-                            triggerChangeEvent(originalInput);
-                            closeOverlay();
+                            attachFilesToInput(fileList);
                         };
 
                         // Handle Ctrl+V action
@@ -557,29 +542,37 @@ function createOverlay(event) {
                                     else {
                                         const imagePreviewContainer = document.querySelector('#cnp-preview-container');
                                         imagePreviewContainer.style.cursor = 'pointer';
-                                        imagePreviewContainer.onclick = () => {
-                                            originalInput.files = fileList.files;
-                                            triggerChangeEvent(originalInput);
-                                            closeOverlay();
+                                        // Attach when the user selects the preview. Intercept at the window capture
+                                        // phase (earlier than a site's document-level dismiss) and stop the event, so
+                                        // popups like Jira/Teams don't unmount the input before we set the files.
+                                        if (cnpPreviewPointerHandler)
+                                            window.removeEventListener('pointerdown', cnpPreviewPointerHandler, true);
+                                        cnpPreviewPointerHandler = event => {
+                                            if (event.button !== 0)
+                                                return;
+                                            const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+                                            if (!path.includes(imagePreviewContainer))
+                                                return;
+                                            event.preventDefault();
+                                            event.stopImmediatePropagation();
+                                            attachFilesToInput(fileList);
                                         };
+                                        window.addEventListener('pointerdown', cnpPreviewPointerHandler, true);
                                     }
                                 } else
                                     noImage();
                             }
                         }, { once: true, capture: true });
 
-                        // Trigger paste event
+                        // Trigger paste event. The overlay may run in the page's main world, which has
+                        // no clipboard access; ask our own same-origin content script to read it instead.
                         overlay.contentEditable = true;
                         overlay.focus({ preventScroll: true });
                         document.execCommand('paste');
                         if (!isPasteListenerTriggered)
-                            window.top.postMessage({ 'Type': 'paste' }, '*');
+                            window.postMessage({ cnp: 'copy-n-paste', type: 'read-clipboard' }, location.origin);
                         isPasteListenerTriggered = false;
                         overlay.contentEditable = false;
-
-                        // Trigger paste event for iframe
-                        if (document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])'))
-                            window.top.postMessage({ 'Type': 'paste', 'iframe': document.head.querySelector('script:is([id*="CnP-mutatedIframe"], [id*="CnP-iframe"])').getAttribute('id') }, '*');
                     });
             }
         });
@@ -623,6 +616,13 @@ function cloneEvent(e) {
     return clone;
 }
 
+// Set the picked files on the original input and notify the page.
+function attachFilesToInput(fileList) {
+    originalInput.files = fileList.files;
+    triggerChangeEvent(originalInput);
+    closeOverlay();
+}
+
 // Trigger change event on original input to update value (like disabled buttons)
 function triggerChangeEvent(originalInput) {
     originalInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -633,6 +633,10 @@ function triggerChangeEvent(originalInput) {
 function closeOverlay() {
     document.querySelectorAll('.cnp-overlay').forEach(overlay => overlay.remove());
     document.removeEventListener('keydown', ctrlV);
+    if (cnpPreviewPointerHandler) {
+        window.removeEventListener('pointerdown', cnpPreviewPointerHandler, true);
+        cnpPreviewPointerHandler = null;
+    }
     URL.revokeObjectURL(currentObjectURL);
     if (reader != null)
         reader.abort();
@@ -641,5 +645,4 @@ function closeOverlay() {
 // Console logging for errors and messages
 function logging(message) {
     console.log('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message);
-    window.top.postMessage(('%c📋 Copy-n-Paste:\n', 'font-weight: bold; font-size: 1.3em;', message), '*');
 }
