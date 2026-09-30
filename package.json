@@ -1,5 +1,17 @@
 {
+  "scripts": {
+    "build": "node build.js",
+    "test": "playwright test",
+    "test:security": "playwright test tests/security.spec.js",
+    "test:sites": "playwright test tests/sites.spec.js",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "lint:firefox": "node build.js && npx --yes addons-linter dist/firefox"
+  },
   "dependencies": {
     "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
   }
 }

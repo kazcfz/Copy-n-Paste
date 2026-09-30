@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Hostile page</title>
+    <script src="/recorder.js"></script>
+    <style>
+        body { margin: 0; padding: 8px; font: 14px sans-serif; }
+        .row { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
+        iframe { width: 420px; height: 320px; }
+    </style>
+</head>
+<body>
+    <div class="row"><input type="file" id="visible"></div>
+    <div class="row"><label for="hidden-input" id="label">Upload (label)</label><input type="file" id="hidden-input" hidden></div>
+    <div class="row"><button id="detached">Upload (detached input)</button></div>
+    <div class="row"><button id="picker">Upload (showPicker)</button><input type="file" id="picker-input" hidden></div>
+    <div class="row"><closed-upload></closed-upload></div>
+    <div class="row"><button id="open-dialog">Open modal dialog</button></div>
+    <div class="row"><input type="file" id="multi" multiple> <input type="file" id="folder" webkitdirectory></div>
+    <div class="row"><textarea id="notes"></textarea></div>
+    <div class="row"><button id="blank-frame">about:blank frame</button><button id="written-frame">document.write frame</button></div>
+    <div class="row" id="frames"><iframe id="cross" src="http://other.test/frame.html"></iframe></div>
+
+    <dialog id="dialog"><input type="file" id="dialog-input"><button id="close-dialog">Close</button></dialog>
+
+    <script>
+        document.getElementById('detached').onclick = () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = () => window.changes.push({ id: 'detached', files: [...input.files].map(file => file.name) });
+            input.click();
+        };
+        document.getElementById('picker').onclick = () => document.getElementById('picker-input').showPicker();
+        document.getElementById('open-dialog').onclick = () => document.getElementById('dialog').showModal();
+
+        // A rich-text editor whose toolbar keeps focus in the editor (Firefox only pastes into editables then)
+        if (location.search.includes('editor')) {
+            const editor = document.createElement('div');
+            editor.id = 'editor';
+            editor.contentEditable = 'true';
+            editor.textContent = 'Some text in an editor';
+            const button = document.createElement('button');
+            button.id = 'toolbar-image';
+            button.textContent = 'Insert image';
+            button.onmousedown = event => event.preventDefault();
+            button.onclick = () => document.getElementById('picker-input').click();
+            document.body.prepend(editor, button);
+        }
+
+        customElements.define('closed-upload', class extends HTMLElement {
+            constructor() {
+                super();
+                const root = this.attachShadow({ mode: 'closed' });
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.id = 'closed-input';
+                const button = document.createElement('button');
+                button.id = 'closed-button';
+                button.textContent = 'Upload (closed shadow, .click())';
+                button.onclick = () => input.click();
+                // change isn't composed, so it has to be observed inside the root
+                input.onchange = () => window.changes.push({ id: 'closed-input', files: [...input.files].map(file => file.name) });
+                root.append(input, button);
+            }
+        });
+
+        // A page that registers its own paste listener in a fresh frame before inserting an input there
+        document.getElementById('blank-frame').onclick = () => {
+            const frame = document.createElement('iframe');
+            frame.id = 'blank';
+            document.getElementById('frames').append(frame);
+            frame.contentWindow.addEventListener('paste', event => window.leaks.push('paste in about:blank frame: ' + [...event.clipboardData.types]), true);
+            const input = frame.contentDocument.createElement('input');
+            input.type = 'file';
+            input.id = 'blank-input';
+            input.onchange = () => window.changes.push({ id: 'blank-input', files: [...input.files].map(file => file.name) });
+            frame.contentDocument.body.append(input);
+        };
+
+        // document.open() erases every event listener, the extension's included
+        document.getElementById('written-frame').onclick = () => {
+            const frame = document.createElement('iframe');
+            frame.id = 'written';
+            document.getElementById('frames').append(frame);
+            const doc = frame.contentDocument;
+            doc.open();
+            doc.write('<!doctype html><input type="file" id="written-input">');
+            doc.close();
+            frame.contentWindow.addEventListener('paste', event => window.leaks.push('paste in written frame: ' + [...event.clipboardData.types]), true);
+        };
+
+        // No user activation: nothing may happen. Only synchronous attempts: Playwright's evaluate()
+        // counts as a user gesture in Chromium, so later attempts could race the test harness.
+        if (location.search.includes('no-activation')) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.click();
+            try { document.getElementById('picker-input').showPicker(); } catch { }
+            document.getElementById('visible').click();
+        }
+    </script>
+</body>
+</html>

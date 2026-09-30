@@ -3,8 +3,8 @@ const path = require('path');
 const archiver = require('archiver');
 
 // List exactly what to include
-const includeFolders = ['icons', 'media'];
-const includeFiles = ['background.js', 'content.js', 'init.js', 'overlay.html'];
+const includeFolders = ['icons'];
+const includeFiles = ['background.js', 'content.js', 'page.js'];
 
 function ensureDir(dir) {
     if (!fs.existsSync(dir)) {

@@ -41,26 +41,39 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 </td><td>
 
 <i>Legend: **✓** Compatible, **⨉** Not compatible, **?** Untested</i><br>
-<i>*Works with Opera Easy Files enabled, which is activated when clicking [+ Upload File] button.</i>
+<i>*Works with Opera Easy Files enabled, which is activated when clicking [+ Upload File] button.</i><br>
+<i>Requires Chromium 111+ or Firefox 140+.</i>
 
 </td></tr></table>
 <br><br>
 
 ## Getting Started (for <sub><img src="https://upload.wikimedia.org/wikipedia/commons/2/28/Chromium_Logo.svg" height="27px"></sub> Chromium developers/testers)
-1. Download and extract source code
+1. Download and extract source code, then run `npm install` and `npm run build`
 2. Visit the Extensions page
     - <sub><sub><img src="https://www.google.com.my/chrome/static/images/chrome-logo-m100.svg" alt="Chrome" height="20px"></sub></sub> `chrome://extensions`
     - <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/9/98/Microsoft_Edge_logo_%282019%29.svg" alt="Edge" height="20px"></sub></sub> `edge://extensions`
 3. Enable 'Developer mode'
 4. Select 'Load unpacked'
-5. Select the extracted extension folder
+5. Select the `dist/chromium` folder
 
 ## Getting Started (for <sub><img src="https://upload.wikimedia.org/wikipedia/commons/d/d4/Mozillagecko-logo.svg" height="27px"></sub> Gecko developers/testers)
-1. Download and extract source code
+1. Download and extract source code, then run `npm install` and `npm run build`
 2. Visit the Debugging page
     - <sub><sub><img src="https://upload.wikimedia.org/wikipedia/commons/a/a0/Firefox_logo%2C_2019.svg" alt="Firefox" height="20px"></sub></sub> `about:debugging#/runtime/this-firefox`
 3. Select 'Load Temporary Add-on...'
-4. Select the extracted extension folder
+4. Select `dist/firefox/manifest.json`
+<br><br>
+
+## Testing
+Automated tests run the built extension in Playwright's Chromium and Firefox (Windows; headed browser windows open and **the system clipboard is overwritten** with test files).
+```sh
+npm install
+npx playwright install chromium firefox
+npm test                # everything, both browsers
+npm run test:security   # hostile-page security checks and every file-picker mechanism
+npm run test:sites      # live public websites (needs internet)
+npm run lint:firefox    # Mozilla's add-on validator (what addons.mozilla.org runs)
+```
 <br><br>
 
 ## Bugs and Feature requests
