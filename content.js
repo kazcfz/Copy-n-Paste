@@ -286,7 +286,7 @@ are always first in line.
     // Synchronous: execCommand dispatches the paste event before returning
     function readClipboardFiles() {
         let files = null;
-        pasteSink = data => { files = usableFiles(data.files); };
+        pasteSink = data => { files = usableFiles(data); };
         try {
             document.execCommand('paste');
             // Firefox refuses while focus is outside an editable element on pages that have one (rich-text editors)
@@ -321,9 +321,14 @@ are always first in line.
         }
     }
 
-    function usableFiles(fileList) {
-        return [...fileList]
-            .filter(file => !(file.size === 0 && file.type === '')) // folders
+    // Only readable during the paste/drop event that provided `data`
+    function usableFiles(data) {
+        return [...data.items]
+            .filter(item => item.kind === 'file')
+            // Folders can't be uploaded. Chromium reports their size on disk on macOS/Linux, so size 0 only catches Windows
+            .filter(item => !item.webkitGetAsEntry()?.isDirectory)
+            .map(item => item.getAsFile())
+            .filter(file => file && !(file.size === 0 && file.type === ''))
             .map(file => file.name && file.name !== 'image.png' ? file :
                 new File([file], `CnP_${timestamp()}.${file.type.split('/').pop()}`, { type: file.type, lastModified: file.lastModified }));
     }
@@ -381,7 +386,7 @@ are always first in line.
             case 'drop': {
                 event.preventDefault();
                 ui.dropText.classList.remove('cnp-visible');
-                const files = usableFiles(event.dataTransfer.files);
+                const files = usableFiles(event.dataTransfer);
                 if (files.length)
                     attach(files);
                 break;

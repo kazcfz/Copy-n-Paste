@@ -14,7 +14,7 @@ function installOnce(port, addonPath) {
         };
         socket.on('data', chunk => {
             buffer = Buffer.concat([buffer, chunk]);
-            for (;;) {
+            for (; ;) {
                 const colon = buffer.indexOf(':');
                 if (colon < 0)
                     return;

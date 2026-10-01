@@ -131,7 +131,8 @@ test.describe('clipboard data never reaches the page without the user', () => {
             const host = window.overlayHost();
             for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
                 host.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y }));
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true, bubbles: true }));
+            for (const modifier of ['ctrlKey', 'metaKey'])
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', [modifier]: true, bubbles: true }));
         }, { x: box.x + box.width / 2, y: box.y + box.height * 0.38 });
         await page.waitForTimeout(300);
         expect(await changes(page)).toEqual([]);
@@ -259,12 +260,23 @@ test.describe('overlay behaviour', () => {
         expect(await leaks(page)).toEqual([]);
     });
 
+    // Chromium reports a folder's size on disk on macOS/Linux, so it doesn't look empty there
+    test('a copied folder is never attached', async ({ context, page }) => {
+        copyFiles(path.join(__dirname, 'assets'));
+        await openHostile(context, page);
+        await openOverlay(page, '#multi');
+        await clickOverlay(page, page.mainFrame(), 'preview');
+        await page.waitForTimeout(300);
+        expect(await changes(page)).toEqual([]);
+    });
+
+    // Cmd+V on macOS
     test('Ctrl+V attaches what is on the clipboard now', async ({ context, page }) => {
         copyFiles(IMAGE);
         await openHostile(context, page);
         await openOverlay(page, '#visible');
         copyFiles(IMAGE_2);
-        await page.keyboard.press('Control+V');
+        await page.keyboard.press('ControlOrMeta+V');
         await expect.poll(() => changes(page)).toEqual([{ id: 'visible', files: ['cnp-test-2.png'] }]);
         await expectNoOverlay(page.mainFrame());
     });
@@ -274,7 +286,7 @@ test.describe('overlay behaviour', () => {
         await openHostile(context, page);
         await openOverlay(page, '#visible');
         await page.focus('#notes');
-        await page.keyboard.press('Control+V');
+        await page.keyboard.press('ControlOrMeta+V');
         await expect(page.locator('#notes')).toHaveValue('hello');
         expect(await changes(page)).toEqual([]);
     });

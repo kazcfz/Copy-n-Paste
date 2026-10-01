@@ -14,6 +14,8 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 1. Copy images/files OR take a screenshot
 2. Click on the website's attach/upload file button (or similar)
 3. Extension overlay pops up to preview and attach from clipboard
+
+<i>macOS saves screenshots as files unless Control is added (<kbd>⌃</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>4</kbd>), which copies them to the clipboard instead.</i>
 <br><br>
 
 ## 🚀 Features
@@ -65,7 +67,7 @@ Copy-n-Paste: Clipboard Upload Simplified is a lightweight extension for Chromiu
 <br><br>
 
 ## Testing
-Automated tests run the built extension in Playwright's Chromium and Firefox (Windows; headed browser windows open and **the system clipboard is overwritten** with test files).
+Automated tests run the built extension in Playwright's Chromium and Firefox on Windows, macOS and Linux (headed browser windows open and **the system clipboard is overwritten** with test files; Linux needs X11 and `xclip`). GitHub Actions runs them on all three for every push.
 ```sh
 npm install
 npx playwright install chromium firefox

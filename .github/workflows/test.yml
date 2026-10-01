@@ -1,0 +1,57 @@
+name: Tests
+
+# Real Windows, macOS and Linux machines: the extension reads the OS clipboard, which differs per platform
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / ${{ matrix.browser }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        browser: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # Headed browsers and the X11 clipboard need a display
+      - name: Install Xvfb and xclip
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y xvfb xclip
+
+      - name: Security and file-picker tests
+        shell: bash
+        run: |
+          run=(npx playwright test tests/security.spec.js --project=${{ matrix.browser }})
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" "${run[@]}"
+          else
+            "${run[@]}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: report-${{ matrix.os }}-${{ matrix.browser }}
+          path: |
+            tests/report
+            tests/results
+          retention-days: 14

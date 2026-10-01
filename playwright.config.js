@@ -9,7 +9,12 @@ module.exports = defineConfig({
     fullyParallel: false,
     timeout: 60_000,
     expect: { timeout: 10_000 },
-    reporter: [['list'], ['html', { open: 'never', outputFolder: 'tests/report' }]],
+    retries: process.env.CI ? 1 : 0,
+    reporter: [
+        ...process.env.CI ? [['github']] : [],
+        ['list'],
+        ['html', { open: 'never', outputFolder: 'tests/report' }],
+    ],
     use: {
         // Trace DOM snapshots evaluate scripts as a user gesture, which would hide activation bugs
         trace: { mode: 'retain-on-failure', snapshots: false, screenshots: true },
