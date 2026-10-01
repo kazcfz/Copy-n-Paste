@@ -21,16 +21,17 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
         browser: [chromium, firefox]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
 
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      # System packages are only needed on Linux (on Windows --with-deps installs Media Foundation, taking minutes)
+      - run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} ${{ matrix.browser }}
 
       # Headed browsers and the X11 clipboard need a display
       - name: Install Xvfb and xclip
@@ -47,7 +48,7 @@ jobs:
             "${run[@]}"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: report-${{ matrix.os }}-${{ matrix.browser }}

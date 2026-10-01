@@ -314,18 +314,22 @@ test.describe('overlay behaviour', () => {
         expect(await changes(page)).toEqual([]);
     });
 
-    test('dropping files on the overlay attaches them', async ({ context, page, browserName }) => {
-        test.skip(browserName !== 'chromium', 'trusted file drops need the Chrome DevTools Protocol');
-        copyFiles(IMAGE);
-        await openHostile(context, page);
-        await openOverlay(page, '#visible');
-        const box = await overlayBox(page.mainFrame());
-        const cdp = await context.newCDPSession(page);
-        const drag = { items: [], files: [IMAGE_2], dragOperationsMask: 1 };
-        const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-        for (const type of ['dragEnter', 'dragOver', 'drop'])
-            await cdp.send('Input.dispatchDragEvent', { type, ...at, data: drag });
-        await expect.poll(() => changes(page)).toEqual([{ id: 'visible', files: ['cnp-test-2.png'] }]);
+    // Declarative skip, so Firefox doesn't open (and have to close) a browser context for nothing
+    test.describe(() => {
+        test.skip(({ browserName }) => browserName !== 'chromium', 'trusted file drops need the Chrome DevTools Protocol');
+
+        test('dropping files on the overlay attaches them', async ({ context, page }) => {
+            copyFiles(IMAGE);
+            await openHostile(context, page);
+            await openOverlay(page, '#visible');
+            const box = await overlayBox(page.mainFrame());
+            const cdp = await context.newCDPSession(page);
+            const drag = { items: [], files: [IMAGE_2], dragOperationsMask: 1 };
+            const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+            for (const type of ['dragEnter', 'dragOver', 'drop'])
+                await cdp.send('Input.dispatchDragEvent', { type, ...at, data: drag });
+            await expect.poll(() => changes(page)).toEqual([{ id: 'visible', files: ['cnp-test-2.png'] }]);
+        });
     });
 });
 
